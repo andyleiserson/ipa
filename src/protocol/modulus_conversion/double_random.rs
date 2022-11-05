@@ -62,7 +62,7 @@ pub struct DoubleRandom<'a, F: Field> {
 }
 
 impl<'a, F: Field> DoubleRandom<'a, F> {
-    fn new(ctx: ProtocolContext<'a, F>) -> Self {
+    pub fn new(ctx: ProtocolContext<'a, F>) -> Self {
         let ctx_xor1 = ctx.narrow(&Step::Xor1);
         let ctx_xor2 = ctx.narrow(&Step::Xor2);
         Self {
