@@ -55,14 +55,28 @@ impl AsRef<str> for Step {
 /// we know the secret-shared values are all either 0, or 1. As such, the XOR operation
 /// is equivalent to fn xor(a, b) { a + b - 2*a*b }
 #[derive(Debug)]
-pub struct DoubleRandom {}
+pub struct DoubleRandom<'a, F: Field> {
+    ctx: ProtocolContext<'a, F>,
+    ctx_xor1: ProtocolContext<'a, F>,
+    ctx_xor2: ProtocolContext<'a, F>,
+}
 
-impl DoubleRandom {
+impl<'a, F: Field> DoubleRandom<'a, F> {
+    fn new(ctx: ProtocolContext<'a, F>) -> Self {
+        let ctx_xor1 = ctx.narrow(&Step::Xor1);
+        let ctx_xor2 = ctx.narrow(&Step::Xor2);
+        Self {
+            ctx,
+            ctx_xor1,
+            ctx_xor2,
+        }
+    }
+
     ///
     /// Internal use only.
     /// This is an implementation of "Algorithm 3" from <https://eprint.iacr.org/2018/387.pdf>
     ///
-    fn local_secret_share<B: BinaryField, F: Field>(
+    fn local_secret_share<B: BinaryField>(
         input: Replicated<B>,
         channel_identity: Identity,
     ) -> (Replicated<F>, Replicated<F>, Replicated<F>) {
@@ -101,7 +115,7 @@ impl DoubleRandom {
     ///
     /// And helper 3 has shares:
     /// a: (0, x1) and b: (0, 0)
-    async fn xor_specialized_1<F: Field>(
+    async fn xor_specialized_1(
         ctx: ProtocolContext<'_, F>,
         record_id: RecordId,
         a: Replicated<F>,
@@ -127,7 +141,7 @@ impl DoubleRandom {
     ///
     /// And helper 3 has shares:
     /// (x3, 0)
-    async fn xor_specialized_2<F: Field>(
+    async fn xor_specialized_2(
         ctx: ProtocolContext<'_, F>,
         record_id: RecordId,
         a: Replicated<F>,
@@ -143,16 +157,16 @@ impl DoubleRandom {
     /// of unknown number 'r') into a random secret sharing of the same value in `Z_p`
     /// where the caller can select the output Field.
     #[allow(dead_code)]
-    pub async fn execute<B: BinaryField, F: Field>(
-        ctx: ProtocolContext<'_, F>,
+    pub async fn execute<B: BinaryField>(
+        &self,
         record_id: RecordId,
         random_sharing: Replicated<B>,
     ) -> Result<Replicated<F>, BoxError> {
-        let (sh0, sh1, sh2) = Self::local_secret_share(random_sharing, ctx.role());
+        let (sh0, sh1, sh2) = Self::local_secret_share(random_sharing, self.ctx.role());
 
         let sh0_xor_sh1 =
-            Self::xor_specialized_1(ctx.narrow(&Step::Xor1), record_id, sh0, sh1).await?;
-        Self::xor_specialized_2(ctx.narrow(&Step::Xor2), record_id, sh0_xor_sh1, sh2).await
+            Self::xor_specialized_1(self.ctx_xor1.clone(), record_id, sh0, sh1).await?;
+        Self::xor_specialized_2(self.ctx_xor2.clone(), record_id, sh0_xor_sh1, sh2).await
     }
 }
 
@@ -174,51 +188,56 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         let world = make_world(QueryId);
-        let context = make_contexts::<Fp31>(&world);
-        let ctx0 = &context[0];
-        let ctx1 = &context[1];
-        let ctx2 = &context[2];
+        let [ctx0, ctx1, ctx2] = make_contexts::<Fp31>(&world);
 
-        let mut bools: Vec<u128> = Vec::with_capacity(40);
-        let mut futures = Vec::with_capacity(40);
+        let mut drs: Vec<[DoubleRandom<Fp31>; 3]> = Vec::with_capacity(40);
+        let mut bools: Vec<Vec<u128>> = vec![Vec::with_capacity(40), Vec::with_capacity(40)];
+        let mut futures = Vec::with_capacity(80);
 
-        for i in 0..40_u32 {
-            let b0 = rng.gen::<bool>();
-            let b1 = rng.gen::<bool>();
-            let b2 = rng.gen::<bool>();
-            bools.push(u128::from((b0 ^ b1) ^ b2));
+        for i in 0..40 {
+            drs.push([
+                DoubleRandom::new(ctx0.narrow(&format!("bit{}", i))),
+                DoubleRandom::new(ctx1.narrow(&format!("bit{}", i))),
+                DoubleRandom::new(ctx2.narrow(&format!("bit{}", i))),
+            ]);
+        }
 
-            let bit_number = format!("bit{}", i);
+        for r in 0..2 {
+            for b in 0..40 {
+                let b0 = rng.gen::<bool>();
+                let b1 = rng.gen::<bool>();
+                let b2 = rng.gen::<bool>();
+                bools[r].push(u128::from((b0 ^ b1) ^ b2));
 
-            let record_id = RecordId::from(i);
+                let record_id = RecordId::from(r);
 
-            futures.push(try_join_all(vec![
-                DoubleRandom::execute(
-                    ctx0.narrow(&bit_number),
-                    record_id,
-                    Replicated::new(Fp2::from(b0), Fp2::from(b1)),
-                ),
-                DoubleRandom::execute(
-                    ctx1.narrow(&bit_number),
-                    record_id,
-                    Replicated::new(Fp2::from(b1), Fp2::from(b2)),
-                ),
-                DoubleRandom::execute(
-                    ctx2.narrow(&bit_number),
-                    record_id,
-                    Replicated::new(Fp2::from(b2), Fp2::from(b0)),
-                ),
-            ]));
+                futures.push(try_join_all(vec![
+                    drs[b][0].execute(
+                        record_id,
+                        Replicated::new(Fp2::from(b0), Fp2::from(b1)),
+                    ),
+                    drs[b][1].execute(
+                        record_id,
+                        Replicated::new(Fp2::from(b1), Fp2::from(b2)),
+                    ),
+                    drs[b][2].execute(
+                        record_id,
+                        Replicated::new(Fp2::from(b2), Fp2::from(b0)),
+                    ),
+                ]));
+            }
         }
 
         let results = try_join_all(futures).await?;
 
-        for i in 0..40 {
-            let result_shares = &results[i];
-            let output_share: Fp31 =
-                validate_and_reconstruct((result_shares[0], result_shares[1], result_shares[2]));
+        for r in 0..2 {
+            for b in 0..40 {
+                let result_shares = &results[40*r+b];
+                let output_share: Fp31 =
+                    validate_and_reconstruct((result_shares[0], result_shares[1], result_shares[2]));
 
-            assert_eq!(output_share.as_u128(), bools[i]);
+                assert_eq!(output_share.as_u128(), bools[r][b]);
+            }
         }
         Ok(())
     }

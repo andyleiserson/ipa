@@ -64,6 +64,7 @@ impl ConvertShares {
         Self { input }
     }
 
+    /*
     #[allow(dead_code)]
     pub async fn execute<F: Field>(
         &self,
@@ -106,7 +107,9 @@ impl ConvertShares {
             });
         try_join_all(futures).await
     }
+    */
 
+    /*
     #[allow(dead_code)]
     pub async fn execute_one_bit<F: Field>(
         &self,
@@ -138,6 +141,7 @@ impl ConvertShares {
             Ok(r_big_field)
         }
     }
+    */
 }
 
 #[cfg(test)]
@@ -161,6 +165,7 @@ mod tests {
         prss_space_number: u8,
     }
 
+    /*
     #[tokio::test]
     pub async fn convert_shares() {
         let mut rng = rand::thread_rng();
@@ -283,4 +288,5 @@ mod tests {
         }
         Ok(())
     }
+    */
 }
