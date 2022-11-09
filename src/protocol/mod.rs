@@ -1,6 +1,7 @@
 mod attribution;
 mod batch;
 mod check_zero;
+#[macro_use]
 pub mod context;
 pub mod malicious;
 mod maliciously_secure_mul;

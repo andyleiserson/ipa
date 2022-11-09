@@ -116,3 +116,84 @@ impl<'a, F: Field> ProtocolContext<'a, F> {
         MaliciouslySecureMul::new(self, record_id, accumulator)
     }
 }
+
+/*
+macro_rules! narrow {
+    ($result:ident, $ctx:expr, $step:expr) => {
+        static $result: once_cell::sync::OnceCell::<$crate::protocol::context::ProtocolContext<Fp31>> = once_cell::sync::OnceCell::new();
+        $result.get_or_init(|| $ctx.narrow($step));
+        static NARROWED: once_cell::sync::OnceCell::<$crate::protocol::UniqueStepId> = once_cell::sync::OnceCell::new();
+        let ctx = ctx.narrow($step);
+        NARROWED.get_or_init(|| ctx.step().to_owned());
+        // TODO: if NARROWED was already set, verify it still matches
+        ctx
+    }
+}
+*/
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        error::BoxError,
+        ff::Fp31,
+        protocol::QueryId,
+        test_fixture::{make_contexts, make_world},
+    };
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    struct TestStep;
+
+    impl crate::protocol::Step for TestStep {}
+
+    impl AsRef<str> for TestStep {
+        fn as_ref(&self) -> &str {
+            "test"
+        }
+    }
+
+    #[tokio::test]
+    pub async fn narrow() -> Result<(), BoxError> {
+        let world = make_world(QueryId);
+        let context = make_contexts::<Fp31>(&world);
+
+        let _ = context[0].narrow(&TestStep);
+
+        Ok(())
+    }
+
+    // In debug builds, we should panic if we try to reuse a step in the same context.
+    #[cfg(debug_assertions)]
+    #[tokio::test]
+    #[should_panic]
+    pub async fn narrow_twice() {
+        let world = make_world(QueryId);
+        let context = make_contexts::<Fp31>(&world);
+
+        let _ = context[0].narrow(&TestStep);
+        let _ = context[0].narrow(&TestStep);
+    }
+
+    // When a context is narrowed inside a loop, that should not be reported as a
+    // duplicate usage. Note, however, that care must be taken when writing protocols
+    // or this exception may let things through that are not okay. For example:
+    //
+    // ```
+    // for i in 0..2 {
+    //  // narrow
+    //  if i == 0 {
+    //      // do something
+    //  } else {
+    //      // do something completely different
+    //  }
+    // }
+    // ```
+    #[tokio::test]
+    pub async fn narrow_in_loop() {
+        let world = make_world(QueryId);
+        let context = make_contexts::<Fp31>(&world);
+
+        for _ in 0..2 {
+            let _ = context[0].narrow(&TestStep);
+        }
+    }
+}
