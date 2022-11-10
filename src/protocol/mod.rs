@@ -111,6 +111,14 @@ impl UniqueStepId {
             used: Arc::new(Mutex::new(HashSet::new())),
         }
     }
+
+    pub fn check<S: Step + ?Sized>(&self, step: &S) {
+        #[cfg(debug_assertions)]
+        {
+            let s = String::from_iter(["/", step.as_ref()].into_iter());
+            assert!(self.id.ends_with(&s));
+        }
+    }
 }
 
 impl Default for UniqueStepId {

@@ -65,20 +65,32 @@ impl<'a, F: Field> ProtocolContext<'a, F> {
     /// Note that each invocation of this should use a unique value of `step`.
     #[must_use]
     pub fn narrow<S: Step + ?Sized>(&self, step: &S) -> Self {
-        ProtocolContext {
-            role: self.role,
-            step: self.step.narrow(step),
-            prss: self.prss,
-            gateway: self.gateway,
-            accumulator: self.accumulator.clone(),
-        }
+        self.narrow_internal(self.step.narrow(step))
     }
 
     /// Make a sub-context.
     /// Note that each invocation of this should use a unique value of `step`.
+    /// This variant (vs. `narrow`) must be used when it may be called multiple times.
+    /// TODO: there are probably better names than `narrow2` and `step_holder`.
     #[must_use]
     pub fn narrow2<S: Step + ?Sized>(&self, step_holder: &once_cell::sync::OnceCell<UniqueStepId>, step: &S) -> Self {
-        let step = step_holder.get_or_init(|| self.step.narrow(step)).to_owned();
+        // TODO: confirm that `step` is consistent with `step_holder` when the once cell is already populated.
+        match step_holder.get() {
+            Some(saved_step) => {
+                saved_step.check(step);
+                self.narrow_internal(saved_step.to_owned())
+            }
+            None => {
+                let step = step_holder.get_or_init(|| self.step.narrow(step)).to_owned();
+                self.narrow_internal(step)
+            }
+        }
+    }
+
+    // It doesn't seem wise to expose this externally since a `step` not
+    // having the right relation to `self.step` makes no sense.  The
+    // public API is `narrow` and `narrow2`.
+    fn narrow_internal(&self, step: UniqueStepId) -> Self {
         ProtocolContext {
             role: self.role,
             step,
@@ -131,16 +143,6 @@ impl<'a, F: Field> ProtocolContext<'a, F> {
     }
 }
 
-/*
-macro_rules! narrow {
-    ($narrowed:ident, $ctx:expr, $step:expr) => {
-        static STEP_ID: once_cell::sync::OnceCell::<$crate::protocol::UniqueStepId> = once_cell::sync::OnceCell::new();
-        let $narrowed = $ctx.narrow($step);
-        STEP_ID.get_or_init(|| $ctx.step().to_owned());
-    }
-}
-*/
-
 macro_rules! narrow {
     ($ctx:expr, $step:expr) => ({
         static STEP_ID: once_cell::sync::OnceCell::<$crate::protocol::UniqueStepId> = once_cell::sync::OnceCell::new();
@@ -165,6 +167,21 @@ mod tests {
     impl AsRef<str> for TestStep {
         fn as_ref(&self) -> &str {
             "test"
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    struct ChameleonStep(usize);
+
+    impl crate::protocol::Step for ChameleonStep {}
+
+    impl AsRef<str> for ChameleonStep {
+        fn as_ref(&self) -> &str {
+            if self.0 == 0 {
+                "first"
+            } else {
+                "not first"
+            }
         }
     }
 
@@ -211,6 +228,22 @@ mod tests {
 
         for _ in 0..2 {
             let _ = narrow!(context[0], &TestStep);
+        }
+    }
+
+    // ChameleonStep seems pretty contrived, but the check in `narrow2` that the
+    // same refinement is passed each time it is called (vs. silently ignoring
+    // the refinement after the first call) seemed important, and this is a test
+    // for that check.
+    #[cfg(debug_assertions)]
+    #[tokio::test]
+    #[should_panic]
+    pub async fn narrow_different_ways() {
+        let world = make_world(QueryId);
+        let context = make_contexts::<Fp31>(&world);
+
+        for i in 0..2 {
+            let _ = narrow!(context[0], &ChameleonStep(i));
         }
     }
 }

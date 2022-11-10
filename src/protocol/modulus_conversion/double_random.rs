@@ -162,24 +162,12 @@ mod tests {
     use crate::{
         error::BoxError,
         ff::{Field, Fp2, Fp31},
-        protocol::{modulus_conversion::double_random::DoubleRandom, QueryId, RecordId, UniqueStepId, context::ProtocolContext},
+        protocol::{modulus_conversion::double_random::DoubleRandom, QueryId, RecordId},
         secret_sharing::Replicated,
         test_fixture::{make_contexts, make_world, validate_and_reconstruct},
     };
     use futures::future::try_join_all;
-    use once_cell::sync::OnceCell;
     use proptest::prelude::Rng;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    struct TestStep;
-
-    impl crate::protocol::Step for TestStep {}
-
-    impl AsRef<str> for TestStep {
-        fn as_ref(&self) -> &str {
-            "test"
-        }
-    }
 
     #[tokio::test]
     pub async fn gen_random() -> Result<(), BoxError> {
@@ -203,19 +191,6 @@ mod tests {
             let bit_number = format!("bit{}", i);
 
             let record_id = RecordId::from(i);
-
-            //fn narrow_to_bit<'a>(ctx: &ProtocolContext<'a, Fp31>) -> ProtocolContext<'a, Fp31> {
-            /*
-            let ctx0_bit = (|| {
-                static NARROWED: once_cell::sync::OnceCell::<UniqueStepId> = once_cell::sync::OnceCell::new();
-                let ctx = ctx0.narrow(&TestStep);
-                NARROWED.get_or_init(|| ctx.step().to_owned());
-                ctx
-            })();
-            */
-            //static BN: OnceCell<UniqueStepId> = OnceCell::new();
-            //BN.get_or_init(|| TestStep);
-            //narrow!(ctx0_bit, ctx0, &bit_number);
 
             futures.push(try_join_all(vec![
                 DoubleRandom::execute(
