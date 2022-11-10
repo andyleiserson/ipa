@@ -74,6 +74,20 @@ impl<'a, F: Field> ProtocolContext<'a, F> {
         }
     }
 
+    /// Make a sub-context.
+    /// Note that each invocation of this should use a unique value of `step`.
+    #[must_use]
+    pub fn narrow2<S: Step + ?Sized>(&self, step_holder: &once_cell::sync::OnceCell<UniqueStepId>, step: &S) -> Self {
+        let step = step_holder.get_or_init(|| self.step.narrow(step)).to_owned();
+        ProtocolContext {
+            role: self.role,
+            step,
+            prss: self.prss,
+            gateway: self.gateway,
+            accumulator: self.accumulator.clone(),
+        }
+    }
+
     /// Get the indexed PRSS instance for this step.  It is safe to call this function
     /// multiple times.
     ///
@@ -119,17 +133,24 @@ impl<'a, F: Field> ProtocolContext<'a, F> {
 
 /*
 macro_rules! narrow {
-    ($result:ident, $ctx:expr, $step:expr) => {
-        static $result: once_cell::sync::OnceCell::<$crate::protocol::context::ProtocolContext<Fp31>> = once_cell::sync::OnceCell::new();
-        $result.get_or_init(|| $ctx.narrow($step));
-        static NARROWED: once_cell::sync::OnceCell::<$crate::protocol::UniqueStepId> = once_cell::sync::OnceCell::new();
-        let ctx = ctx.narrow($step);
-        NARROWED.get_or_init(|| ctx.step().to_owned());
-        // TODO: if NARROWED was already set, verify it still matches
-        ctx
+    ($narrowed:ident, $ctx:expr, $step:expr) => {
+        static STEP_ID: once_cell::sync::OnceCell::<$crate::protocol::UniqueStepId> = once_cell::sync::OnceCell::new();
+        let $narrowed = $ctx.narrow($step);
+        STEP_ID.get_or_init(|| $ctx.step().to_owned());
     }
 }
 */
+
+macro_rules! narrow {
+    ($ctx:expr, $step:expr) => (
+        if false { panic!() } else {
+            static STEP_ID: once_cell::sync::OnceCell::<$crate::protocol::UniqueStepId> = once_cell::sync::OnceCell::new();
+            let ctx = $ctx.narrow2(&STEP_ID, $step);
+            //STEP_ID.get_or_init(|| $ctx.step().to_owned());
+            ctx
+        }
+    )
+}
 
 #[cfg(test)]
 mod tests {
@@ -193,7 +214,7 @@ mod tests {
         let context = make_contexts::<Fp31>(&world);
 
         for _ in 0..2 {
-            let _ = context[0].narrow(&TestStep);
+            let _ = narrow!(context[0], &TestStep);
         }
     }
 }
