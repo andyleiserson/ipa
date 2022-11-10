@@ -142,14 +142,10 @@ macro_rules! narrow {
 */
 
 macro_rules! narrow {
-    ($ctx:expr, $step:expr) => (
-        if false { panic!() } else {
-            static STEP_ID: once_cell::sync::OnceCell::<$crate::protocol::UniqueStepId> = once_cell::sync::OnceCell::new();
-            let ctx = $ctx.narrow2(&STEP_ID, $step);
-            //STEP_ID.get_or_init(|| $ctx.step().to_owned());
-            ctx
-        }
-    )
+    ($ctx:expr, $step:expr) => ({
+        static STEP_ID: once_cell::sync::OnceCell::<$crate::protocol::UniqueStepId> = once_cell::sync::OnceCell::new();
+        $ctx.narrow2(&STEP_ID, $step)
+    })
 }
 
 #[cfg(test)]
