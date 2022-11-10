@@ -151,8 +151,8 @@ impl DoubleRandom {
         let (sh0, sh1, sh2) = Self::local_secret_share(random_sharing, ctx.role());
 
         let sh0_xor_sh1 =
-            Self::xor_specialized_1(ctx.narrow(&Step::Xor1), record_id, sh0, sh1).await?;
-        Self::xor_specialized_2(ctx.narrow(&Step::Xor2), record_id, sh0_xor_sh1, sh2).await
+            Self::xor_specialized_1(narrow!(ctx, &Step::Xor1), record_id, sh0, sh1).await?;
+        Self::xor_specialized_2(narrow!(ctx, &Step::Xor2), record_id, sh0_xor_sh1, sh2).await
     }
 }
 

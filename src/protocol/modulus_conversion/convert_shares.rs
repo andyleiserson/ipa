@@ -124,11 +124,11 @@ impl ConvertShares {
 
         let (r_big_field, revealed_output) = try_join(
             DoubleRandom::execute(
-                ctx.narrow(&Step::DoubleRandom),
+                narrow!(ctx, &Step::DoubleRandom),
                 record_id,
                 Replicated::new(b0, b1),
             ),
-            RevealAdditiveBinary::execute(ctx.narrow(&Step::BinaryReveal), record_id, input_xor_r),
+            RevealAdditiveBinary::execute(narrow!(ctx, &Step::BinaryReveal), record_id, input_xor_r),
         )
         .await?;
 
@@ -243,23 +243,22 @@ mod tests {
             .map(|(i, (c0, (c1, (c2, shared_match_key))))| async move {
                 let (share_0, share_1, share_2) = shared_match_key;
                 let record_id = RecordId::from(i);
-                let hack = format!("hack_{}", i);
                 try_join_all(vec![
                     ConvertShares::new(XorShares {
                         num_bits: 40,
                         packed_bits: share_0,
                     })
-                    .execute_one_bit(c0.narrow(&hack), record_id, 4),
+                    .execute_one_bit(c0, record_id, 4),
                     ConvertShares::new(XorShares {
                         num_bits: 40,
                         packed_bits: share_1,
                     })
-                    .execute_one_bit(c1.narrow(&hack), record_id, 4),
+                    .execute_one_bit(c1, record_id, 4),
                     ConvertShares::new(XorShares {
                         num_bits: 40,
                         packed_bits: share_2,
                     })
-                    .execute_one_bit(c2.narrow(&hack), record_id, 4),
+                    .execute_one_bit(c2, record_id, 4),
                 ])
                 .await
             }),
