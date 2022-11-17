@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -16,16 +17,23 @@ use crate::{
 
 use crate::secret_sharing::{MaliciousReplicated, Replicated, SecretSharing};
 
+pub trait RecordBinding: Send + Sync + Copy + Debug {}
+#[derive(Clone, Copy, Debug)]
+pub struct AnyRecord;
+
+impl RecordBinding for AnyRecord {}
+impl RecordBinding for RecordId {}
+
 /// Context used by each helper to perform computation. Currently they need access to shared
 /// randomness generator (see `Participant`) and communication trait to send messages to each other.
 #[derive(Clone, Debug)]
-pub struct ProtocolContext<'a, S, F> {
+pub struct ProtocolContext<'a, S, F, R = AnyRecord> {
     role: Role,
     step: Step,
     prss: &'a PrssEndpoint,
     gateway: &'a Gateway,
     accumulator: Option<SecurityValidatorAccumulator<F>>,
-    record_id: Option<RecordId>,
+    record_id: R,
     _marker: PhantomData<S>,
 }
 
@@ -37,11 +45,13 @@ impl<'a, F: Field, SS: SecretSharing<F>> ProtocolContext<'a, SS, F> {
             prss: participant,
             gateway,
             accumulator: None,
-            record_id: None,
+            record_id: AnyRecord,
             _marker: PhantomData::default(),
         }
     }
+}
 
+impl<'a, F: Field, SS: SecretSharing<F>, R: RecordBinding> ProtocolContext<'a, SS, F, R> {
     /// The role of this context.
     #[must_use]
     pub fn role(&self) -> Role {
@@ -65,30 +75,6 @@ impl<'a, F: Field, SS: SecretSharing<F>> ProtocolContext<'a, SS, F> {
             gateway: self.gateway,
             accumulator: self.accumulator.clone(),
             record_id: self.record_id,
-            _marker: PhantomData::default(),
-        }
-    }
-
-    #[must_use]
-    /// Make a sub-context which is bound to a record in case the same step is bound to a different `record_id`
-    /// # Panics
-    /// Panics in case the context is already bound to the same `record_id`
-    pub fn bind(&self, record_id: RecordId) -> Self {
-        if let Some(prev_record_id) = self.record_id {
-            panic!(
-                "Cannot bind to {record_id:?} because already bound to record: {prev_record_id:?}"
-            )
-        }
-
-        ProtocolContext {
-            role: self.role,
-            // create a unique step that allows narrowing this context to the same step
-            // if it is bound to a different record id
-            step: Step::from_step_id(&self.step),
-            prss: self.prss,
-            gateway: self.gateway,
-            accumulator: self.accumulator.clone(),
-            record_id: Some(record_id),
             _marker: PhantomData::default(),
         }
     }
@@ -120,16 +106,56 @@ impl<'a, F: Field, SS: SecretSharing<F>> ProtocolContext<'a, SS, F> {
     pub fn mesh(&self) -> Mesh<'_, '_> {
         self.gateway.mesh(&self.step)
     }
+
+    pub fn record_id(&self) -> R {
+        self.record_id
+    }
+}
+
+impl<'a, F: Field, SS: SecretSharing<F>> ProtocolContext<'a, SS, F, AnyRecord> {
+    #[must_use]
+    /// Make a sub-context which is bound to a record in case the same step is bound to a different `record_id`
+    pub fn bind(&self, record_id: RecordId) -> ProtocolContext<'a, SS, F, RecordId> {
+        ProtocolContext {
+            role: self.role,
+            step: Step::from_step_id(&self.step),
+            prss: self.prss,
+            gateway: self.gateway,
+            accumulator: self.accumulator.clone(),
+            record_id,
+            _marker: PhantomData::default(),
+        }
+    }
+}
+
+impl<'a, F: Field, SS: SecretSharing<F>> ProtocolContext<'a, SS, F, RecordId> {
+    #[must_use]
+    #[deprecated]
+    /// Remove `record_id` binding from a context
+    /// (This should be used only as a temporary mechanism to interoperate with
+    /// code that should take a record-bound context but hasn't been updated to
+    /// do so yet.)
+    pub fn unbind(&self) -> ProtocolContext<'a, SS, F, AnyRecord> {
+        ProtocolContext {
+            role: self.role,
+            step: Step::from_step_id(&self.step),
+            prss: self.prss,
+            gateway: self.gateway,
+            accumulator: self.accumulator.clone(),
+            record_id: AnyRecord,
+            _marker: PhantomData::default(),
+        }
+    }
 }
 
 /// Implementation to upgrade semi-honest context to malicious. Only works for replicated secret
 /// sharing because it is not known yet how to do it for any other type of secret sharing.
-impl<'a, F: Field> ProtocolContext<'a, Replicated<F>, F> {
+impl<'a, F: Field, R> ProtocolContext<'a, Replicated<F>, F, R> {
     #[must_use]
     pub fn upgrade_to_malicious(
         self,
         accumulator: SecurityValidatorAccumulator<F>,
-    ) -> ProtocolContext<'a, MaliciousReplicated<F>, F> {
+    ) -> ProtocolContext<'a, MaliciousReplicated<F>, F, R> {
         ProtocolContext {
             role: self.role,
             step: self.step,
@@ -143,7 +169,7 @@ impl<'a, F: Field> ProtocolContext<'a, Replicated<F>, F> {
 }
 
 /// Implementation that is specific to malicious contexts operating over replicated secret sharings.
-impl<'a, F: Field> ProtocolContext<'a, MaliciousReplicated<F>, F> {
+impl<'a, F: Field, R> ProtocolContext<'a, MaliciousReplicated<F>, F, R> {
     /// Get the accumulator that collects messages MACs.
     ///
     /// ## Panics
@@ -165,7 +191,7 @@ impl<'a, F: Field> ProtocolContext<'a, MaliciousReplicated<F>, F> {
     /// The context received will be an exact copy of malicious, so it will be tied up to the same step
     /// and prss.
     #[must_use]
-    pub fn to_semi_honest(self) -> ProtocolContext<'a, Replicated<F>, F> {
+    pub fn to_semi_honest(self) -> ProtocolContext<'a, Replicated<F>, F, R> {
         ProtocolContext {
             role: self.role,
             step: self.step,

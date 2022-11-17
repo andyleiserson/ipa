@@ -58,12 +58,14 @@ impl ConvertShares {
 
     pub async fn execute_one_bit<F: Field>(
         &self,
-        ctx: ProtocolContext<'_, Replicated<F>, F>,
-        record_id: RecordId,
+        ctx: ProtocolContext<'_, Replicated<F>, F, RecordId>,
         bit_index: u8,
     ) -> Result<Replicated<F>, BoxError> {
         assert!(bit_index < self.input.num_bits);
 
+        let record_id = ctx.record_id();
+        // TODO: pending updating DoubleRandom to take bound context
+        let ctx = ctx.unbind();
         let prss = &ctx.prss();
         let (left, right) = prss.generate_values(record_id);
 
@@ -108,7 +110,7 @@ pub async fn convert_shares_for_a_bit<F: Field>(
                 packed_bits_left: row.0,
                 packed_bits_right: row.1,
             })
-            .execute_one_bit(ctx.bind(record_id), record_id, bit_index)
+            .execute_one_bit(ctx.bind(record_id), bit_index)
             .await
         },
     ))
@@ -166,27 +168,26 @@ mod tests {
             .enumerate()
             .map(|(i, (c0, (c1, (c2, shared_match_key))))| async move {
                 let (share_0, share_1, share_2) = shared_match_key;
-                let record_id = RecordId::from(0_u32);
-                let hack = format!("hack_{}", i);
+                let record_id = RecordId::from(i);
                 try_join_all(vec![
                     ConvertShares::new(XorShares {
                         num_bits: 40,
                         packed_bits_left: share_0,
                         packed_bits_right: share_1,
                     })
-                    .execute_one_bit(c0.narrow(&hack), record_id, 4),
+                    .execute_one_bit(c0.bind(record_id), 4),
                     ConvertShares::new(XorShares {
                         num_bits: 40,
                         packed_bits_left: share_1,
                         packed_bits_right: share_2,
                     })
-                    .execute_one_bit(c1.narrow(&hack), record_id, 4),
+                    .execute_one_bit(c1.bind(record_id), 4),
                     ConvertShares::new(XorShares {
                         num_bits: 40,
                         packed_bits_left: share_2,
                         packed_bits_right: share_0,
                     })
-                    .execute_one_bit(c2.narrow(&hack), record_id, 4),
+                    .execute_one_bit(c2.bind(record_id), 4),
                 ])
                 .await
             }),

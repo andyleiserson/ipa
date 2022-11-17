@@ -36,12 +36,12 @@ impl<F: Field> Reshare<F> {
     ///    `to_helper.right` = (`rand_right`, part1 + part2) = (r0, part1 + part2)
     pub async fn execute(
         self,
-        ctx: &ProtocolContext<'_, Replicated<F>, F>,
-        record_id: RecordId,
+        ctx: ProtocolContext<'_, Replicated<F>, F, RecordId>,
         to_helper: Role,
     ) -> Result<Replicated<F>, BoxError> {
         let channel = ctx.mesh();
         let prss = ctx.prss();
+        let record_id = ctx.record_id();
         let (r0, r1) = prss.generate_fields(record_id);
 
         // `to_helper.left` calculates part1 = (input.0 + input.1) - r1 and sends part1 to `to_helper.right`
@@ -110,9 +110,9 @@ mod tests {
             let reshare1 = Reshare::new(share[1]);
             let reshare2 = Reshare::new(share[2]);
 
-            let h0_future = reshare0.execute(&context[0], record_id, Role::H2);
-            let h1_future = reshare1.execute(&context[1], record_id, Role::H2);
-            let h2_future = reshare2.execute(&context[2], record_id, Role::H2);
+            let h0_future = reshare0.execute(context[0].bind(record_id), Role::H2);
+            let h1_future = reshare1.execute(context[1].bind(record_id), Role::H2);
+            let h2_future = reshare2.execute(context[2].bind(record_id), Role::H2);
 
             let f = try_join!(h0_future, h1_future, h2_future).unwrap();
             let output_share = validate_and_reconstruct(f);
