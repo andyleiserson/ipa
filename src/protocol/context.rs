@@ -9,7 +9,9 @@ use super::{
 use crate::{
     ff::Field,
     helpers::{
-        messaging::{Gateway, Mesh},
+        Direction,
+        Error,
+        messaging::{Gateway, Mesh, Message},
         Role,
     },
     protocol::{malicious::SecurityValidatorAccumulator, prss::Endpoint as PrssEndpoint},
@@ -23,6 +25,83 @@ pub struct AnyRecord;
 
 impl RecordBinding for AnyRecord {}
 impl RecordBinding for RecordId {}
+
+pub struct Prss<R: RecordBinding> {
+    rng: Arc<IndexedSharedRandomness>,
+    record_id: R,
+}
+
+impl Prss<AnyRecord> {
+    pub fn generate_fields<F: Field>(self, index: RecordId) -> (F, F) {
+        self.rng.generate_fields(index)
+    }
+
+    pub fn generate_values(self, index: RecordId) -> (u128, u128) {
+        self.rng.generate_values(index)
+    }
+
+    pub fn generate_replicated<F: Field, I: Into<u128>>(self, index: I) -> Replicated<F> {
+        self.rng.generate_replicated(index)
+    }
+}
+
+impl Prss<RecordId> {
+    pub fn generate_fields<F: Field>(self) -> (F, F) {
+        self.rng.generate_fields(self.record_id)
+    }
+
+    pub fn generate_values(self) -> (u128, u128) {
+        self.rng.generate_values(self.record_id)
+    }
+
+    pub fn generate_replicated<F: Field>(self) -> Replicated<F> {
+        self.rng.generate_replicated(self.record_id)
+    }
+}
+
+pub struct Sink<'a, R> {
+    role: Role,
+    mesh: Mesh<'a, 'a>,
+    record_id: R,
+}
+
+impl Sink<'_, AnyRecord> {
+    pub async fn send<T: Message>(self, record_id: RecordId, msg: T) -> Result<(), Error> {
+        self.mesh.send(self.role, record_id, msg).await
+    }
+}
+
+impl Sink<'_, RecordId> {
+    pub async fn send<T: Message>(self, msg: T) -> Result<(), Error> {
+        self.mesh.send(self.role, self.record_id, msg).await
+    }
+}
+
+pub struct Source<'a, R> {
+    role: Role,
+    mesh: Mesh<'a, 'a>,
+    record_id: R,
+}
+
+impl Source<'_, AnyRecord> {
+    pub async fn receive<T: Message>(self, record_id: RecordId) -> Result<T, Error> {
+        self.mesh.receive(self.role, record_id).await
+    }
+}
+
+impl Source<'_, RecordId> {
+    pub async fn receive<T: Message>(self) -> Result<T, Error> {
+        self.mesh.receive(self.role, self.record_id).await
+    }
+}
+
+pub struct ProtocolContextParts<'a, R: RecordBinding> {
+    prss: Prss<R>,
+    to_left: Sink<'a, R>,
+    to_right: Sink<'a, R>,
+    from_left: Source<'a, R>,
+    from_right: Source<'a, R>,
+}
 
 /// Context used by each helper to perform computation. Currently they need access to shared
 /// randomness generator (see `Participant`) and communication trait to send messages to each other.
@@ -85,10 +164,12 @@ impl<'a, F: Field, SS: SecretSharing<F>, R: RecordBinding> ProtocolContext<'a, S
     /// # Panics
     /// If `prss_rng()` is invoked for the same context, this will panic.  Use of
     /// these two functions are mutually exclusive.
+    /*
     #[must_use]
     pub fn prss(&self) -> Arc<IndexedSharedRandomness> {
         self.prss.indexed(&self.step)
     }
+    */
 
     /// Get a pair of PRSS-based RNGs.  The first is shared with the helper to the "left",
     /// the second is shared with the helper to the "right".
@@ -105,6 +186,20 @@ impl<'a, F: Field, SS: SecretSharing<F>, R: RecordBinding> ProtocolContext<'a, S
     #[must_use]
     pub fn mesh(&self) -> Mesh<'_, '_> {
         self.gateway.mesh(&self.step)
+    }
+
+    // TODO: should take self by value
+    pub fn into_parts(&self) -> ProtocolContextParts<R> {
+        ProtocolContextParts {
+            prss: Prss {
+                rng: self.prss.indexed(&self.step),
+                record_id: self.record_id,
+            },
+            to_left: Sink { role: self.role.peer(Direction::Left), mesh: self.mesh(), record_id: self.record_id },
+            to_right: Sink { role: self.role.peer(Direction::Right), mesh: self.mesh(), record_id: self.record_id },
+            from_left: Source { role: self.role.peer(Direction::Left), mesh: self.mesh(), record_id: self.record_id },
+            from_right: Source { role: self.role.peer(Direction::Right), mesh: self.mesh(), record_id: self.record_id },
+        }
     }
 
     pub fn record_id(&self) -> R {

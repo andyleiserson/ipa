@@ -1,8 +1,11 @@
 use crate::{
     error::Error,
     ff::Field,
-    helpers::{Direction, Role},
-    protocol::{context::ProtocolContext, RecordId},
+    helpers::Role,
+    protocol::{
+        context::{ProtocolContext, ProtocolContextParts},
+        RecordId
+    },
     secret_sharing::Replicated,
 };
 
@@ -35,9 +38,15 @@ pub async fn multiply_two_shares_mostly_zeroes<F: Field>(
     a: Replicated<F>,
     b: Replicated<F>,
 ) -> Result<Replicated<F>, Error> {
+    let ProtocolContextParts {
+        prss,
+        to_right,
+        from_left,
+        ..
+    } = ctx.into_parts();
+
     match ctx.role() {
         Role::H1 => {
-            let prss = &ctx.prss();
             let (s_3_1, _) = prss.generate_fields(record_id);
 
             // d_1 = a_1 * b_2 + a_2 * b_1 - s_3,1
@@ -50,10 +59,7 @@ pub async fn multiply_two_shares_mostly_zeroes<F: Field>(
             let d_1 = a_1 * b_2 - s_3_1;
 
             // notify helper on the right that we've computed our value
-            let channel = ctx.mesh();
-            channel
-                .send(ctx.role().peer(Direction::Right), record_id, d_1)
-                .await?;
+            to_right.send(record_id, d_1).await?;
 
             Ok(Replicated::new(s_3_1, d_1))
         }
@@ -65,10 +71,7 @@ pub async fn multiply_two_shares_mostly_zeroes<F: Field>(
             // And there is no need to send it.
 
             // Sleep until helper on the left sends us their (d_i-1) value
-            let channel = ctx.mesh();
-            let d_1 = channel
-                .receive(ctx.role().peer(Direction::Left), record_id)
-                .await?;
+            let d_1 = from_left.receive(record_id).await?;
 
             Ok(Replicated::new(d_1, F::ZERO))
         }
@@ -79,7 +82,6 @@ pub async fn multiply_two_shares_mostly_zeroes<F: Field>(
             // d_3 is a constant, known in advance. So we can replace it with zero
             // And there is no need to send it.
 
-            let prss = &ctx.prss();
             let (_, s_3_1) = prss.generate_fields(record_id);
 
             Ok(Replicated::new(F::ZERO, s_3_1))
@@ -119,7 +121,12 @@ pub async fn multiply_one_share_mostly_zeroes<F: Field>(
     a: Replicated<F>,
     b: Replicated<F>,
 ) -> Result<Replicated<F>, Error> {
-    let prss = &ctx.prss();
+    let ProtocolContextParts {
+            prss,
+            from_left,
+            to_right,
+            ..
+        } = ctx.into_parts();
     let (s_left, s_right) = prss.generate_fields(record_id);
 
     match ctx.role() {
@@ -131,10 +138,7 @@ pub async fn multiply_one_share_mostly_zeroes<F: Field>(
             // And there is no need to send it.
 
             // Sleep until helper on the left sends us their (d_i-1) value
-            let channel = ctx.mesh();
-            let d_3 = channel
-                .receive(ctx.role().peer(Direction::Left), record_id)
-                .await?;
+            let d_3 = from_left.receive(record_id).await?;
 
             Ok(Replicated::new(d_3, s_right))
         }
@@ -149,10 +153,7 @@ pub async fn multiply_one_share_mostly_zeroes<F: Field>(
             let d_2 = a_2 * b_3 - s_left;
 
             // notify helper on the right that we've computed our value
-            let channel = ctx.mesh();
-            channel
-                .send(ctx.role().peer(Direction::Right), record_id, d_2)
-                .await?;
+            to_right.send(record_id, d_2).await?;
 
             Ok(Replicated::new(s_left, a_3 * b_3 + d_2 + s_right))
         }
@@ -167,15 +168,10 @@ pub async fn multiply_one_share_mostly_zeroes<F: Field>(
             let d_3 = a_1 * b_3 - s_left;
 
             // notify helper on the right that we've computed our value
-            let channel = ctx.mesh();
-            channel
-                .send(ctx.role().peer(Direction::Right), record_id, d_3)
-                .await?;
+            to_right.send(record_id, d_3).await?;
 
             // Sleep until helper on the left sends us their (d_i-1) value
-            let d_2 = channel
-                .receive(ctx.role().peer(Direction::Left), record_id)
-                .await?;
+            let d_2 = from_left.receive(record_id).await?;
 
             Ok(Replicated::new(a_3 * b_3 + d_2 + s_left, d_3))
         }

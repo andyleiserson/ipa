@@ -2,7 +2,8 @@ use crate::{
     error::BoxError,
     ff::{Field, Fp2},
     protocol::{
-        context::ProtocolContext, modulus_conversion::double_random::DoubleRandom, RecordId,
+        context::{ProtocolContext, ProtocolContextParts},
+        modulus_conversion::double_random::DoubleRandom, RecordId,
     },
     secret_sharing::Replicated,
 };
@@ -66,7 +67,11 @@ impl ConvertShares {
         let record_id = ctx.record_id();
         // TODO: pending updating DoubleRandom to take bound context
         let ctx = ctx.unbind();
-        let prss = &ctx.prss();
+        let ProtocolContextParts {
+            prss,
+            ..
+        } = ctx.into_parts();
+
         let (left, right) = prss.generate_values(record_id);
 
         let r_binary = Replicated::new(
@@ -168,7 +173,7 @@ mod tests {
             .enumerate()
             .map(|(i, (c0, (c1, (c2, shared_match_key))))| async move {
                 let (share_0, share_1, share_2) = shared_match_key;
-                let record_id = RecordId::from(i);
+                let record_id = RecordId::from(0_u32);
                 try_join_all(vec![
                     ConvertShares::new(XorShares {
                         num_bits: 40,

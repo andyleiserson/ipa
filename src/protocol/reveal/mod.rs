@@ -1,12 +1,13 @@
 use std::iter::{repeat, zip};
 
 use crate::ff::Field;
-use crate::protocol::context::ProtocolContext;
 use crate::secret_sharing::{MaliciousReplicated, Replicated, SecretSharing};
 use crate::{
     error::{BoxError, Error},
-    helpers::Direction,
-    protocol::RecordId,
+    protocol::{
+        context::{ProtocolContext, ProtocolContextParts},
+        RecordId,
+    },
 };
 use async_trait::async_trait;
 use embed_doc_image::embed_doc_image;
@@ -47,17 +48,17 @@ impl<G: Field> Reveal for ProtocolContext<'_, Replicated<G>, G> {
         record_id: RecordId,
         input: Self::Share<F>,
     ) -> Result<F, Error> {
-        let (role, channel) = (self.role(), self.mesh());
+        let ProtocolContextParts {
+            to_right,
+            from_left,
+            ..
+        } = self.into_parts();
         let (left, right) = input.as_tuple();
 
-        channel
-            .send(role.peer(Direction::Right), record_id, left)
-            .await?;
+        to_right.send(record_id, left).await?;
 
         // Sleep until `helper's left` sends their share
-        let share = channel
-            .receive(role.peer(Direction::Left), record_id)
-            .await?;
+        let share = from_left.receive(record_id).await?;
 
         Ok(left + right + share)
     }
@@ -76,19 +77,25 @@ impl<G: Field> Reveal for ProtocolContext<'_, MaliciousReplicated<G>, G> {
         record_id: RecordId,
         input: Self::Share<F>,
     ) -> Result<F, Error> {
-        let (role, channel) = (self.role(), self.mesh());
+        let ProtocolContextParts {
+            to_left,
+            to_right,
+            from_left,
+            from_right,
+            ..
+        } = self.into_parts();
         let (left, right) = input.x().as_tuple();
 
         // Send share to helpers to the right and left
         try_join(
-            channel.send(role.peer(Direction::Left), record_id, right),
-            channel.send(role.peer(Direction::Right), record_id, left),
+            to_left.send(record_id, right),
+            to_right.send(record_id, left),
         )
         .await?;
 
         let (share_from_left, share_from_right) = try_join(
-            channel.receive(role.peer(Direction::Left), record_id),
-            channel.receive(role.peer(Direction::Right), record_id),
+            from_left.receive(record_id),
+            from_right.receive(record_id),
         )
         .await?;
 
@@ -127,12 +134,12 @@ mod tests {
     use proptest::prelude::Rng;
     use tokio::try_join;
 
+    use crate::protocol::context::ProtocolContextParts;
     use crate::protocol::malicious::SecurityValidator;
     use crate::{
         error::BoxError,
         error::Error,
         ff::{Field, Fp31},
-        helpers::Direction,
         protocol::reveal::Reveal,
         protocol::{context::ProtocolContext, QueryId, RecordId},
         secret_sharing::MaliciousReplicated,
@@ -220,14 +227,19 @@ mod tests {
         input: MaliciousReplicated<F>,
         additive_error: F,
     ) -> Result<F, Error> {
-        let channel = ctx.mesh();
+        let ProtocolContextParts {
+            to_left,
+            to_right,
+            from_left,
+            from_right,
+            ..
+        } = ctx.into_parts();
         let (left, right) = input.x().as_tuple();
 
         // Send share to helpers to the right and left
         try_join(
-            channel.send(ctx.role().peer(Direction::Left), record_id, right),
-            channel.send(
-                ctx.role().peer(Direction::Right),
+            to_left.send(record_id, right),
+            to_right.send(
                 record_id,
                 left + additive_error,
             ),
@@ -235,8 +247,8 @@ mod tests {
         .await?;
 
         let (share_from_left, _share_from_right): (F, F) = try_join(
-            channel.receive(ctx.role().peer(Direction::Left), record_id),
-            channel.receive(ctx.role().peer(Direction::Right), record_id),
+            from_left.receive(record_id),
+            from_right.receive(record_id),
         )
         .await?;
 

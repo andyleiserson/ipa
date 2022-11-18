@@ -2,7 +2,10 @@ use crate::ff::Field;
 use crate::{
     error::BoxError,
     helpers::{Direction, Role},
-    protocol::{context::ProtocolContext, RecordId},
+    protocol::{
+        context::{ProtocolContext, ProtocolContextParts},
+        RecordId
+    },
     secret_sharing::Replicated,
 };
 use embed_doc_image::embed_doc_image;
@@ -36,40 +39,38 @@ impl<F: Field> Reshare<F> {
     ///    `to_helper.right` = (`rand_right`, part1 + part2) = (r0, part1 + part2)
     pub async fn execute(
         self,
-        ctx: ProtocolContext<'_, Replicated<F>, F, RecordId>,
+        ctx: &ProtocolContext<'_, Replicated<F>, F, RecordId>,
         to_helper: Role,
     ) -> Result<Replicated<F>, BoxError> {
-        let channel = ctx.mesh();
-        let prss = ctx.prss();
-        let record_id = ctx.record_id();
-        let (r0, r1) = prss.generate_fields(record_id);
+        let ProtocolContextParts {
+            prss,
+            to_left,
+            to_right,
+            from_left,
+            from_right,
+        } = ctx.into_parts();
+        let (r0, r1) = prss.generate_fields();
 
-        // `to_helper.left` calculates part1 = (input.0 + input.1) - r1 and sends part1 to `to_helper.right`
+        // `to_helper.left` calculates part1 = (input.0 + input.1) - r1 and sends it
+        // to `to_helper.right` (which is `to_helper.left.left`, i.e., our left).
         // This is same as (a1 + a2) - r2 in the diagram
         if ctx.role() == to_helper.peer(Direction::Left) {
             let part1 = self.input.left() + self.input.right() - r1;
-            channel
-                .send(to_helper.peer(Direction::Right), record_id, part1)
-                .await?;
+            to_left.send(part1).await?;
 
             // Sleep until `to_helper.right` sends us their part2 value
-            let part2 = channel
-                .receive(to_helper.peer(Direction::Right), record_id)
-                .await?;
+            let part2 = from_left.receive().await?;
 
             Ok(Replicated::new(part1 + part2, r1))
         } else if ctx.role() == to_helper.peer(Direction::Right) {
-            // `to_helper.right` calculates part2 = (input.left() - r0) and sends it to `to_helper.left`
+            // `to_helper.right` calculates part2 = (input.left() - r0) and sends it
+            // to `to_helper.left` (which is `to_helper.right.right`, i.e., our right).
             // This is same as (a3 - r3) in the diagram
             let part2 = self.input.left() - r0;
-            channel
-                .send(to_helper.peer(Direction::Left), record_id, part2)
-                .await?;
+            to_right.send(part2).await?;
 
             // Sleep until `to_helper.left` sends us their part1 value
-            let part1: F = channel
-                .receive(to_helper.peer(Direction::Left), record_id)
-                .await?;
+            let part1: F = from_right.receive().await?;
 
             Ok(Replicated::new(r0, part1 + part2))
         } else {
@@ -110,9 +111,9 @@ mod tests {
             let reshare1 = Reshare::new(share[1]);
             let reshare2 = Reshare::new(share[2]);
 
-            let h0_future = reshare0.execute(context[0].bind(record_id), Role::H2);
-            let h1_future = reshare1.execute(context[1].bind(record_id), Role::H2);
-            let h2_future = reshare2.execute(context[2].bind(record_id), Role::H2);
+            let h0_future = reshare0.execute(&context[0].bind(record_id), Role::H2);
+            let h1_future = reshare1.execute(&context[1].bind(record_id), Role::H2);
+            let h2_future = reshare2.execute(&context[2].bind(record_id), Role::H2);
 
             let f = try_join!(h0_future, h1_future, h2_future).unwrap();
             let output_share = validate_and_reconstruct(f);

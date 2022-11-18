@@ -93,7 +93,7 @@ async fn reshare_all_shares<F: Field>(
 ) -> Result<Vec<Replicated<F>>, BoxError> {
     let reshares = input.iter().enumerate().map(|(index, input)| async move {
         Reshare::new(*input)
-            .execute(ctx.bind(RecordId::from(index)), to_helper)
+            .execute(&ctx.bind(RecordId::from(index)), to_helper)
             .await
     });
     try_join_all(reshares).await

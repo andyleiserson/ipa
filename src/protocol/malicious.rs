@@ -4,7 +4,10 @@ use crate::{
     ff::Field,
     helpers::Direction,
     protocol::{
-        check_zero::check_zero, context::ProtocolContext, prss::IndexedSharedRandomness, RecordId,
+        check_zero::check_zero,
+        context::{ProtocolContext, ProtocolContextParts},
+        prss::IndexedSharedRandomness,
+        RecordId,
         RECORD_0, RECORD_1, RECORD_2,
     },
     secret_sharing::{MaliciousReplicated, Replicated},
@@ -123,7 +126,10 @@ impl<F: Field> SecurityValidator<F> {
     #[must_use]
     #[allow(clippy::needless_pass_by_value)]
     pub fn new(ctx: ProtocolContext<'_, Replicated<F>, F>) -> SecurityValidator<F> {
-        let prss = ctx.prss();
+        let ProtocolContextParts {
+            prss,
+            ..
+        } = ctx.into_parts();
 
         let r_share = prss.generate_replicated(RECORD_0);
 

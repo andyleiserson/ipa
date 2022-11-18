@@ -3,7 +3,7 @@ use crate::protocol::reveal::Reveal;
 use crate::{
     error::BoxError,
     ff::Field,
-    protocol::{context::ProtocolContext, RecordId},
+    protocol::{context::{ProtocolContext, ProtocolContextParts}, RecordId},
     secret_sharing::Replicated,
 };
 use serde::{Deserialize, Serialize};
@@ -66,7 +66,10 @@ pub async fn check_zero<F: Field>(
     record_id: RecordId,
     v: Replicated<F>,
 ) -> Result<bool, BoxError> {
-    let prss = &ctx.prss();
+    let ProtocolContextParts {
+        prss,
+        ..
+    } = ctx.into_parts();
     let r_sharing = prss.generate_replicated(record_id);
 
     let rv_share = ctx
