@@ -1,4 +1,4 @@
-use std::iter::{repeat, zip};
+use std::num::NonZeroUsize;
 
 use futures::future::try_join_all;
 
@@ -27,6 +27,7 @@ pub struct MaliciousContext<'a, F: Field> {
     /// may operate with raw references and be more efficient
     inner: Arc<ContextInner<'a, F>>,
     step: Step,
+    total_records: Option<NonZeroUsize>,
 }
 
 pub trait SpecialAccessToMaliciousContext<'a, F: Field> {
@@ -45,6 +46,19 @@ impl<'a, F: Field> MaliciousContext<'a, F> {
         Self {
             inner: ContextInner::new(upgrade_ctx, acc, r_share),
             step: source.step().narrow(malicious_step),
+            total_records: None,
+        }
+    }
+
+    /// Sets the context's "total number of upgrades" field, which is like the
+    /// "total number of records" field, but for inputs that need to be upgraded
+    /// to a malicious sharing.
+    #[must_use]
+    pub fn set_total_upgrades(&self, total_upgrades: usize) -> Self {
+        Self {
+            inner: self.inner.set_total_upgrades(total_upgrades),
+            step: self.step.clone(),
+            total_records: self.total_records,
         }
     }
 
@@ -61,6 +75,29 @@ impl<'a, F: Field> MaliciousContext<'a, F> {
             .await
     }
 
+    /// Upgrade an input vector using this context.
+    ///
+    /// Note: This can only be used once. To use it multiple times, it would
+    /// need to take a step (like the _with variants).
+    ///
+    /// # Errors
+    /// When the multiplication fails. This does not include additive attacks
+    /// by other helpers.  These are caught later.
+    pub async fn upgrade_vector(
+        &self,
+        input: Vec<Replicated<F>>,
+    ) -> Result<Vec<MaliciousReplicated<F>>, Error> {
+        let ctx = self.set_total_upgrades(input.len());
+        let ctx_ref = &ctx;
+        try_join_all(
+            input.into_iter().enumerate().map(|(i, share)| async move {
+                ctx_ref.upgrade_sparse(RecordId::from(i), share, ZeroPositions::Pvvv).await
+            }),
+        )
+        .await
+
+    }
+
     /// Upgrade a sparse input using this context.
     /// # Errors
     /// When the multiplication fails. This does not include additive attacks
@@ -72,23 +109,6 @@ impl<'a, F: Field> MaliciousContext<'a, F> {
         zeros_at: ZeroPositions,
     ) -> Result<MaliciousReplicated<F>, Error> {
         self.inner.upgrade(record_id, input, zeros_at).await
-    }
-
-    /// Upgrade an input vector using this context.
-    /// # Errors
-    /// When the multiplication fails. This does not include additive attacks
-    /// by other helpers.  These are caught later.
-    pub async fn upgrade_vector<SS: Substep>(
-        &self,
-        step: &SS,
-        input: Vec<Replicated<F>>,
-    ) -> Result<Vec<MaliciousReplicated<F>>, Error> {
-        try_join_all(
-            zip(repeat(self), input.into_iter().enumerate()).map(|(ctx, (i, share))| async move {
-                ctx.upgrade_with(step, RecordId::from(i), share).await
-            }),
-        )
-        .await
     }
 
     /// Upgrade an input for a specific bit index using this context.  Use this for
@@ -152,6 +172,20 @@ impl<'a, F: Field> Context<F> for MaliciousContext<'a, F> {
         Self {
             inner: Arc::clone(&self.inner),
             step: self.step.narrow(step),
+            total_records: self.total_records,
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    fn is_total_records_known(&self) -> bool {
+        self.total_records.is_some()
+    }
+
+    fn set_total_records(&self, total_records: usize) -> Self {
+        Self {
+            inner: Arc::clone(&self.inner),
+            step: self.step.clone(),
+            total_records: Some(total_records.try_into().unwrap()),
         }
     }
 
@@ -175,7 +209,7 @@ impl<'a, F: Field> Context<F> for MaliciousContext<'a, F> {
     }
 
     fn mesh(&self) -> Mesh<'_, '_> {
-        self.inner.gateway.mesh(self.step())
+        self.inner.gateway.mesh(self.step(), self.total_records)
     }
 
     fn share_of_one(&self) -> <Self as Context<F>>::Share {
@@ -205,7 +239,7 @@ impl<'a, F: Field> SpecialAccessToMaliciousContext<'a, F> for MaliciousContext<'
         // is not
         // For the same reason, it is not possible to implement Context<F, Share = Replicated<F>>
         // for `MaliciousContext`. Deep clone is the only option
-        let mut ctx = SemiHonestContext::new(self.inner.role, self.inner.prss, self.inner.gateway);
+        let mut ctx = SemiHonestContext::new_with_total_records(self.inner.role, self.inner.prss, self.inner.gateway, self.total_records);
         ctx.step = self.step;
 
         ctx
@@ -253,6 +287,18 @@ impl<'a, F: Field> ContextInner<'a, F> {
             upgrade_ctx,
             accumulator,
             r_share,
+        })
+    }
+
+    #[must_use]
+    fn set_total_upgrades(&self, total_upgrades: usize) -> Arc<Self> {
+        Arc::new(ContextInner {
+            role: self.role,
+            prss: self.prss,
+            gateway: self.gateway,
+            upgrade_ctx: self.upgrade_ctx.set_total_records(total_upgrades),
+            accumulator: self.accumulator.clone(),
+            r_share: self.r_share.clone(),
         })
     }
 

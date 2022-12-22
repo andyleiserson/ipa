@@ -32,12 +32,14 @@ pub async fn compose<F: Field, S: SecretSharing<F>, C: Context<F, Share = S>>(
     shuffled_sigma: &[u32],
     mut rho: Vec<S>,
 ) -> Result<Vec<S>, Error> {
+    let rho_len = rho.len();
+
     apply(shuffled_sigma, &mut rho);
 
     let unshuffled_rho = unshuffle_shares(
         rho,
         random_permutations_for_shuffle,
-        ctx.narrow(&UnshuffleRho),
+        ctx.narrow(&UnshuffleRho).set_total_records(rho_len),
     )
     .await?;
 

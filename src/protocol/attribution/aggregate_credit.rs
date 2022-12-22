@@ -92,6 +92,7 @@ pub async fn aggregate_credit<F: Field>(
     //     new_stop_bit[current_index] = b * successor.stop_bit;
     //
     let num_rows = sorted_input.len();
+    let ctx = ctx.set_total_records(num_rows);
     let mut stop_bits = repeat(one.clone()).take(num_rows).collect::<Vec<_>>();
 
     let mut credits = sorted_input
@@ -229,7 +230,7 @@ async fn bit_decompose_breakdown_key<F: Field>(
     try_join_all(
         input
             .iter()
-            .zip(repeat(ctx))
+            .zip(repeat(ctx.set_total_records(input.len())))
             .enumerate()
             .map(|(i, (x, c))| async move {
                 BitDecomposition::execute(c, RecordId::from(i), rbg, &x.breakdown_key).await
@@ -261,7 +262,7 @@ async fn sort_by_breakdown_key<F: Field>(
     .await?;
 
     apply_sort_permutation(
-        ctx.narrow(&Step::ApplyPermutationOnBreakdownKey),
+        ctx.narrow(&Step::ApplyPermutationOnBreakdownKey).set_total_records(input.len()),
         input.to_vec(),
         &sort_permutation,
     )

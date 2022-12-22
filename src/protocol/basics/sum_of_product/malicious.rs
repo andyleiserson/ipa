@@ -103,7 +103,7 @@ where
 mod test {
     use crate::{
         ff::{Field, Fp31},
-        protocol::{basics::sum_of_product::SecureSop, RecordId},
+        protocol::{basics::sum_of_product::SecureSop, RecordId, context::Context},
         rand::{thread_rng, Rng},
         test_fixture::{Reconstruct, Runner, TestWorld},
     };
@@ -132,7 +132,8 @@ mod test {
             .malicious((av, bv), |ctx, (a_share, b_share)| async move {
                 let a_refs = a_share.iter().collect::<Vec<_>>();
                 let b_refs = b_share.iter().collect::<Vec<_>>();
-                ctx.sum_of_products(RecordId::from(0), a_refs.as_slice(), b_refs.as_slice())
+                ctx.set_total_records(1)
+                    .sum_of_products(RecordId::from(0), a_refs.as_slice(), b_refs.as_slice())
                     .await
                     .unwrap()
             })

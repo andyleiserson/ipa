@@ -151,6 +151,7 @@ mod tests {
                 let shares = world
                     .semi_honest(secret, |ctx, share| async move {
                         let record_id = RecordId::from(0);
+                        let ctx = ctx.set_total_records(1);
 
                         // run reshare protocol for all helpers except the one that does not know the input
                         if ctx.role() == target {
@@ -183,7 +184,7 @@ mod tests {
                 let secret = thread_rng().gen::<Fp32BitPrime>();
                 let new_shares = world
                     .semi_honest(secret, |ctx, share| async move {
-                        ctx.reshare(&share, RecordId::from(0), role).await.unwrap()
+                        ctx.set_total_records(1).reshare(&share, RecordId::from(0), role).await.unwrap()
                     })
                     .await;
 
@@ -222,7 +223,7 @@ mod tests {
                 let secret = thread_rng().gen::<Fp32BitPrime>();
                 let new_shares = world
                     .malicious(secret, |ctx, share| async move {
-                        ctx.reshare(&share, RecordId::from(0), role).await.unwrap()
+                        ctx.set_total_records(1).reshare(&share, RecordId::from(0), role).await.unwrap()
                     })
                     .await;
 
@@ -319,13 +320,14 @@ mod tests {
                 world
                     .semi_honest(a, |ctx, a| async move {
                         let v = MaliciousValidator::new(ctx);
+                        let m_ctx = v.context().set_total_records(1).set_total_upgrades(1);
                         let record_id = RecordId::from(0);
-                        let m_a = v.context().upgrade(RecordId::from(0), a).await.unwrap();
+                        let m_a = m_ctx.upgrade(RecordId::from(0), a).await.unwrap();
 
-                        let m_reshared_a = if v.context().role() == *malicious_actor {
+                        let m_reshared_a = if m_ctx.role() == *malicious_actor {
                             // This role is spoiling the value.
                             reshare_malicious_with_additive_attack(
-                                v.context(),
+                                m_ctx,
                                 &m_a,
                                 record_id,
                                 to_helper,
@@ -334,7 +336,7 @@ mod tests {
                             .await
                             .unwrap()
                         } else {
-                            v.context()
+                            m_ctx
                                 .reshare(&m_a, record_id, to_helper)
                                 .await
                                 .unwrap()

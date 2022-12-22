@@ -81,6 +81,7 @@ mod tests {
             .semi_honest(
                 (match_keys, sidecar),
                 |ctx, (mk_shares, secret)| async move {
+                    let ctx = ctx.set_total_records(COUNT);
                     let local_lists =
                         convert_all_bits_local(ctx.role(), &mk_shares, MaskedMatchKey::BITS);
                     let converted_shares =

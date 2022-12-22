@@ -6,8 +6,8 @@ use crate::{
         context::{Context, MaliciousContext},
         malicious::MaliciousValidator,
         sort::SortStep::{
-            ApplyInv, BitPermutationStep, ComposeStep, MaliciousUpgradeContext,
-            MaliciousUpgradeInput, ShuffleRevealPermutation, SortKeys,
+            ApplyInv, BitPermutationStep, ComposeStep,
+            ShuffleRevealPermutation, SortKeys,
         },
         sort::{
             bit_permutation::bit_permutation,
@@ -151,14 +151,14 @@ where
 
     let bit_0_permutation =
         bit_permutation(ctx_0.narrow(&BitPermutationStep), &sort_keys[0]).await?;
-    let input_len = u32::try_from(sort_keys[0].len()).unwrap(); // safe, we don't sort more that 1B rows
+    let input_len = sort_keys[0].len();
 
     let mut composed_less_significant_bits_permutation = bit_0_permutation;
     for bit_num in 1..num_bits {
-        let ctx_bit = ctx.narrow(&Sort(bit_num));
+        let ctx_bit = ctx.narrow(&Sort(bit_num)).set_total_records(input_len);
         let revealed_and_random_permutations = shuffle_and_reveal_permutation(
             ctx_bit.narrow(&ShuffleRevealPermutation),
-            input_len,
+            input_len.try_into().unwrap(), // safe, we don't sort more that 1B rows
             composed_less_significant_bits_permutation,
         )
         .await?;
@@ -219,10 +219,13 @@ pub async fn generate_permutation_and_reveal_shuffled<F: Field>(
     sort_keys: &[Vec<Replicated<F>>],
     num_bits: u32,
 ) -> Result<RevealedAndRandomPermutations, Error> {
+    // The input is transposed, so this really is the number of sort keys,
+    // not the length of each sort key.
+    let key_count = sort_keys[0].len();
     let sort_permutation = generate_permutation(ctx.narrow(&SortKeys), sort_keys, num_bits).await?;
     shuffle_and_reveal_permutation(
-        ctx.narrow(&ShuffleRevealPermutation),
-        u32::try_from(sort_keys[0].len()).unwrap(),
+        ctx.narrow(&ShuffleRevealPermutation).set_total_records(key_count),
+        u32::try_from(key_count).unwrap(),
         sort_permutation,
     )
     .await
@@ -265,21 +268,20 @@ pub async fn malicious_generate_permutation<'a, F>(
 where
     F: Field,
 {
-    let mut malicious_validator = MaliciousValidator::new(sh_ctx.narrow(&MaliciousUpgradeContext));
-    let mut m_ctx = malicious_validator.context();
-    let m_ctx_0 = m_ctx.narrow(&Sort(0));
+    // Review note: changed context usage for bit 0 to be analogous to context usage for the rest of the bits
+    let mut malicious_validator = MaliciousValidator::new(sh_ctx.narrow(&Sort(0)));
+    let mut m_ctx_bit = malicious_validator.context();
     assert_eq!(sort_keys.len(), num_bits as usize);
 
-    let upgraded_sort_keys = m_ctx
-        .upgrade_vector(&MaliciousUpgradeInput, sort_keys[0].clone())
+    let upgraded_sort_keys = m_ctx_bit
+        .upgrade_vector(sort_keys[0].clone())
         .await?;
     let bit_0_permutation =
-        bit_permutation(m_ctx_0.narrow(&BitPermutationStep), &upgraded_sort_keys).await?;
+        bit_permutation(m_ctx_bit.narrow(&BitPermutationStep), &upgraded_sort_keys).await?;
     let input_len = u32::try_from(sort_keys[0].len()).unwrap(); // safe, we don't sort more that 1B rows
 
     let mut composed_less_significant_bits_permutation = bit_0_permutation;
     for bit_num in 1..num_bits {
-        let mut m_ctx_bit = m_ctx.narrow(&Sort(bit_num));
         let revealed_and_random_permutations = malicious_shuffle_and_reveal_permutation(
             m_ctx_bit.narrow(&ShuffleRevealPermutation),
             input_len,
@@ -291,7 +293,7 @@ where
         malicious_validator = MaliciousValidator::new(sh_ctx.narrow(&Sort(bit_num)));
         m_ctx_bit = malicious_validator.context();
         let upgraded_sort_keys = m_ctx_bit
-            .upgrade_vector(&MaliciousUpgradeInput, sort_keys[bit_num as usize].clone())
+            .upgrade_vector(sort_keys[bit_num as usize].clone())
             .await?;
         let bit_i_sorted_by_less_significant_bits = secureapplyinv(
             m_ctx_bit.narrow(&ApplyInv),
@@ -333,7 +335,6 @@ where
         )
         .await?;
         composed_less_significant_bits_permutation = composed_i_permutation;
-        m_ctx = m_ctx_bit;
     }
     Ok((
         malicious_validator,

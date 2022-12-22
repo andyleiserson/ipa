@@ -93,7 +93,8 @@ impl<F: Field> IntoMalicious<F, MaliciousReplicated<F>> for Replicated<F> {
         ctx: MaliciousContext<'_, F>,
         step: &SS,
     ) -> MaliciousReplicated<F> {
-        ctx.upgrade_with(step, RecordId::from(0_u32), self)
+        ctx.set_total_upgrades(1)
+            .upgrade_with(step, RecordId::from(0_u32), self)
             .await
             .unwrap()
     }
@@ -124,7 +125,7 @@ impl<F, I> IntoMalicious<F, Vec<MaliciousReplicated<F>>> for I
 where
     F: Field,
     I: IntoIterator<Item = Replicated<F>> + Send,
-    <I as IntoIterator>::IntoIter: Send,
+    <I as IntoIterator>::IntoIter: ExactSizeIterator + Send,
 {
     // Note that this implementation doesn't work with arbitrary nesting.
     // For that, we'd need a `.narrow_for_upgrade()` function on the context.
@@ -133,8 +134,10 @@ where
         ctx: MaliciousContext<'_, F>,
         step: &SS,
     ) -> Vec<MaliciousReplicated<F>> {
+        let iter = self.into_iter();
+        let ctx = ctx.set_total_upgrades(iter.len());
         try_join_all(
-            zip(repeat(ctx), self.into_iter().enumerate()).map(|(ctx, (i, share))| async move {
+            zip(repeat(ctx), iter.enumerate()).map(|(ctx, (i, share))| async move {
                 ctx.upgrade_with(step, RecordId::from(i), share).await
             }),
         )

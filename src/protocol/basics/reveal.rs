@@ -100,6 +100,7 @@ pub async fn reveal_permutation<F: Field, S: SecretSharing<F>, C: Context<F, Sha
     ctx: C,
     permutation: &[S],
 ) -> Result<Vec<u32>, Error> {
+    let ctx = ctx.set_total_records(permutation.len());
     let revealed_permutation = try_join_all(zip(repeat(ctx), permutation).enumerate().map(
         |(index, (ctx, input))| async move {
             let reveal_value = ctx.reveal(RecordId::from(index), input).await;
@@ -139,7 +140,7 @@ mod tests {
     pub async fn simple() -> Result<(), Error> {
         let mut rng = thread_rng();
         let world = TestWorld::new().await;
-        let ctx = world.contexts::<Fp31>();
+        let ctx = world.contexts::<Fp31>().map(|ctx| ctx.set_total_records(10));
 
         for i in 0..10_u32 {
             let secret = rng.gen::<u128>();
@@ -166,20 +167,25 @@ mod tests {
         let world = TestWorld::new().await;
         let sh_ctx = world.contexts::<Fp31>();
         let v = sh_ctx.map(MaliciousValidator::new);
+        let m_ctx: [_; 3] = v.iter()
+            .map(|v| v.context().set_total_records(10).set_total_upgrades(10))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
         for i in 0..10_u32 {
             let record_id = RecordId::from(i);
             let input: Fp31 = rng.gen();
 
             let m_shares = join3v(
-                zip(v.iter(), input.share_with(&mut rng))
-                    .map(|(v, share)| async { v.context().upgrade(record_id, share).await }),
+                zip(m_ctx.iter(), input.share_with(&mut rng))
+                    .map(|(m_ctx, share)| async { m_ctx.upgrade(record_id, share).await }),
             )
             .await;
 
             let results =
-                join3v(zip(v.iter(), m_shares).map(|(v, m_share)| async move {
-                    v.context().reveal(record_id, &m_share).await
+                join3v(zip(m_ctx.clone().into_iter(), m_shares).map(|(m_ctx, m_share)| async move {
+                    m_ctx.reveal(record_id, &m_share).await
                 }))
                 .await;
 
@@ -192,24 +198,30 @@ mod tests {
 
     #[tokio::test]
     pub async fn malicious_validation_fail() -> Result<(), Error> {
+        const COUNT: usize = 10;
         let mut rng = thread_rng();
         let world = TestWorld::new().await;
         let sh_ctx = world.contexts::<Fp31>();
         let v = sh_ctx.map(MaliciousValidator::new);
+        let m_ctx: [_; 3] = v.iter()
+            .map(|v| v.context().set_total_records(COUNT).set_total_upgrades(COUNT))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
-        for i in 0..10 {
+        for i in 0..COUNT {
             let record_id = RecordId::from(i);
             let input: Fp31 = rng.gen();
 
             let m_shares = join3v(
-                zip(v.iter(), input.share_with(&mut rng))
-                    .map(|(v, share)| async { v.context().upgrade(record_id, share).await }),
+                zip(m_ctx.iter(), input.share_with(&mut rng))
+                    .map(|(m_ctx, share)| async { m_ctx.upgrade(record_id, share).await }),
             )
             .await;
             let result = try_join3(
-                v[0].context().reveal(record_id, &m_shares[0]),
-                v[1].context().reveal(record_id, &m_shares[1]),
-                reveal_with_additive_attack(v[2].context(), record_id, &m_shares[2], Fp31::ONE),
+                m_ctx[0].clone().reveal(record_id, &m_shares[0]),
+                m_ctx[1].clone().reveal(record_id, &m_shares[1]),
+                reveal_with_additive_attack(m_ctx[2].clone(), record_id, &m_shares[2], Fp31::ONE),
             )
             .await;
 

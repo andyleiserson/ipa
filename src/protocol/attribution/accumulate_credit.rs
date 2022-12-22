@@ -83,6 +83,7 @@ pub async fn accumulate_credit<F: Field>(
     input: &[AttributionInputRow<F>],
 ) -> Result<Vec<AccumulateCreditOutputRow<F>>, Error> {
     let num_rows = input.len();
+    let ctx = ctx.set_total_records(num_rows);
 
     // 1. Create stop_bit vector.
     // These vector is updated in each iteration to help accumulate values

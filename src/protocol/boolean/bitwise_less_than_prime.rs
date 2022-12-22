@@ -207,7 +207,7 @@ mod tests {
     use crate::test_fixture::Runner;
     use crate::{
         ff::{Field, Fp31, Fp32BitPrime},
-        protocol::RecordId,
+        protocol::{context::Context, RecordId},
         test_fixture::{get_bits, Reconstruct, TestWorld},
     };
     use rand::{distributions::Standard, prelude::Distribution};
@@ -294,7 +294,7 @@ mod tests {
         let bits = get_bits::<F>(a, num_bits);
         let result = world
             .semi_honest(bits.clone(), |ctx, x_share| async move {
-                BitwiseLessThanPrime::less_than_prime(ctx, RecordId::from(0), &x_share)
+                BitwiseLessThanPrime::less_than_prime(ctx.set_total_records(1), RecordId::from(0), &x_share)
                     .await
                     .unwrap()
             })
@@ -303,7 +303,7 @@ mod tests {
 
         let m_result = world
             .malicious(bits, |ctx, x_share| async move {
-                BitwiseLessThanPrime::less_than_prime(ctx, RecordId::from(0), &x_share)
+                BitwiseLessThanPrime::less_than_prime(ctx.set_total_records(1), RecordId::from(0), &x_share)
                     .await
                     .unwrap()
             })
