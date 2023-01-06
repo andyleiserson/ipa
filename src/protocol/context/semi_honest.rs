@@ -31,7 +31,12 @@ impl<'a, F: Field> SemiHonestContext<'a, F> {
         Self::new_with_total_records(role, participant, gateway, None)
     }
 
-    pub fn new_with_total_records(role: Role, participant: &'a PrssEndpoint, gateway: &'a Gateway, total_records: Option<NonZeroUsize>) -> Self {
+    pub fn new_with_total_records(
+        role: Role,
+        participant: &'a PrssEndpoint,
+        gateway: &'a Gateway,
+        total_records: Option<NonZeroUsize>,
+    ) -> Self {
         Self {
             inner: ContextInner::new(role, participant, gateway),
             step: Step::default(),

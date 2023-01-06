@@ -184,7 +184,10 @@ mod tests {
                 let secret = thread_rng().gen::<Fp32BitPrime>();
                 let new_shares = world
                     .semi_honest(secret, |ctx, share| async move {
-                        ctx.set_total_records(1).reshare(&share, RecordId::from(0), role).await.unwrap()
+                        ctx.set_total_records(1)
+                            .reshare(&share, RecordId::from(0), role)
+                            .await
+                            .unwrap()
                     })
                     .await;
 
@@ -223,7 +226,10 @@ mod tests {
                 let secret = thread_rng().gen::<Fp32BitPrime>();
                 let new_shares = world
                     .malicious(secret, |ctx, share| async move {
-                        ctx.set_total_records(1).reshare(&share, RecordId::from(0), role).await.unwrap()
+                        ctx.set_total_records(1)
+                            .reshare(&share, RecordId::from(0), role)
+                            .await
+                            .unwrap()
                     })
                     .await;
 
@@ -336,10 +342,7 @@ mod tests {
                             .await
                             .unwrap()
                         } else {
-                            m_ctx
-                                .reshare(&m_a, record_id, to_helper)
-                                .await
-                                .unwrap()
+                            m_ctx.reshare(&m_a, record_id, to_helper).await.unwrap()
                         };
                         match v.validate(m_reshared_a).await {
                             Ok(result) => panic!("Got a result {result:?}"),

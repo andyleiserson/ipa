@@ -6,8 +6,7 @@ use crate::{
         context::{Context, MaliciousContext},
         malicious::MaliciousValidator,
         sort::SortStep::{
-            ApplyInv, BitPermutationStep, ComposeStep,
-            ShuffleRevealPermutation, SortKeys,
+            ApplyInv, BitPermutationStep, ComposeStep, ShuffleRevealPermutation, SortKeys,
         },
         sort::{
             bit_permutation::bit_permutation,
@@ -224,7 +223,8 @@ pub async fn generate_permutation_and_reveal_shuffled<F: Field>(
     let key_count = sort_keys[0].len();
     let sort_permutation = generate_permutation(ctx.narrow(&SortKeys), sort_keys, num_bits).await?;
     shuffle_and_reveal_permutation(
-        ctx.narrow(&ShuffleRevealPermutation).set_total_records(key_count),
+        ctx.narrow(&ShuffleRevealPermutation)
+            .set_total_records(key_count),
         u32::try_from(key_count).unwrap(),
         sort_permutation,
     )
@@ -273,9 +273,7 @@ where
     let mut m_ctx_bit = malicious_validator.context();
     assert_eq!(sort_keys.len(), num_bits as usize);
 
-    let upgraded_sort_keys = m_ctx_bit
-        .upgrade_vector(sort_keys[0].clone())
-        .await?;
+    let upgraded_sort_keys = m_ctx_bit.upgrade_vector(sort_keys[0].clone()).await?;
     let bit_0_permutation =
         bit_permutation(m_ctx_bit.narrow(&BitPermutationStep), &upgraded_sort_keys).await?;
     let input_len = u32::try_from(sort_keys[0].len()).unwrap(); // safe, we don't sort more that 1B rows

@@ -115,7 +115,10 @@ mod test {
 
         let res = world
             .malicious((a, b), |ctx, (a, b)| async move {
-                ctx.set_total_records(1).multiply(RecordId::from(0), &a, &b).await.unwrap()
+                ctx.set_total_records(1)
+                    .multiply(RecordId::from(0), &a, &b)
+                    .await
+                    .unwrap()
             })
             .await;
 

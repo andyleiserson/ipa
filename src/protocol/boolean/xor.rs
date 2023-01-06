@@ -59,18 +59,28 @@ mod tests {
     {
         let result = world
             .semi_honest((a, b), |ctx, (a_share, b_share)| async move {
-                xor(ctx.set_total_records(1), RecordId::from(0), &a_share, &b_share)
-                    .await
-                    .unwrap()
+                xor(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &a_share,
+                    &b_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();
 
         let m_result = world
             .malicious((a, b), |ctx, (a_share, b_share)| async move {
-                xor(ctx.set_total_records(1), RecordId::from(0), &a_share, &b_share)
-                    .await
-                    .unwrap()
+                xor(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &a_share,
+                    &b_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();
@@ -101,18 +111,30 @@ mod tests {
         let b = SparseField::<F>::new(F::from(u128::from(b)), zeros.1);
         let result = world
             .semi_honest((a, b), |ctx, (a_share, b_share)| async move {
-                xor_sparse(ctx.set_total_records(1), RecordId::from(0), &a_share, &b_share, zeros)
-                    .await
-                    .unwrap()
+                xor_sparse(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &a_share,
+                    &b_share,
+                    zeros,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();
 
         let m_result = world
             .malicious((a, b), |ctx, (a_share, b_share)| async move {
-                xor_sparse(ctx.set_total_records(1), RecordId::from(0), &a_share, &b_share, zeros)
-                    .await
-                    .unwrap()
+                xor_sparse(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &a_share,
+                    &b_share,
+                    zeros,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();

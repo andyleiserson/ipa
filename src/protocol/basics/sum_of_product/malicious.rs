@@ -103,7 +103,7 @@ where
 mod test {
     use crate::{
         ff::{Field, Fp31},
-        protocol::{basics::sum_of_product::SecureSop, RecordId, context::Context},
+        protocol::{basics::sum_of_product::SecureSop, context::Context, RecordId},
         rand::{thread_rng, Rng},
         test_fixture::{Reconstruct, Runner, TestWorld},
     };

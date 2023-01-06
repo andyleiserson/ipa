@@ -52,10 +52,9 @@ where
 }
 
 // TODO: make a macro so we can use arbitrary-sized tuples
-impl IntoShares<()> for ()
-{
+impl IntoShares<()> for () {
     fn share_with<R: Rng>(self, _rng: &mut R) -> [(); 3] {
-        [ (), (), () ]
+        [(), (), ()]
     }
 }
 

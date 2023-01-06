@@ -17,8 +17,8 @@ use crate::{
     task::JoinHandle,
     telemetry::{labels::STEP, metrics::RECORDS_SENT},
 };
-use once_cell::sync::Lazy;
 use futures::StreamExt;
+use once_cell::sync::Lazy;
 use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroUsize;
@@ -130,7 +130,10 @@ impl Mesh<'_, '_> {
         if let Some(count) = self.total_records {
             assert!(
                 usize::from(record_id) < usize::from(count),
-                "record ID {:?} is out of range for {:?} (expected {:?} records)", record_id, self.step, self.total_records;
+                "record ID {:?} is out of range for {:?} (expected {:?} records)",
+                record_id,
+                self.step,
+                self.total_records,
             );
         }
 
@@ -153,7 +156,10 @@ impl Mesh<'_, '_> {
         if let Some(count) = self.total_records {
             assert!(
                 usize::from(record_id) < usize::from(count),
-                "record ID {:?} is out of range for {:?} (expected {:?} records)", record_id, self.step, self.total_records
+                "record ID {:?} is out of range for {:?} (expected {:?} records)",
+                record_id,
+                self.step,
+                self.total_records
             );
         }
 
@@ -246,9 +252,14 @@ impl Gateway {
     /// between this helper and every other one. The actual connection may be created only when
     /// `Mesh::send` or `Mesh::receive` methods are called.
     #[must_use]
-    pub fn mesh<'a, 'b>(&'a self, step: &'b Step, total_records: Option<NonZeroUsize>) -> Mesh<'a, 'b> {
+    pub fn mesh<'a, 'b>(
+        &'a self,
+        step: &'b Step,
+        total_records: Option<NonZeroUsize>,
+    ) -> Mesh<'a, 'b> {
         // TODO: to be changed to panic or assert once all instances are eliminated.
-        static ALREADY_WARNED: Lazy<Mutex<HashSet<Step>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+        static ALREADY_WARNED: Lazy<Mutex<HashSet<Step>>> =
+            Lazy::new(|| Mutex::new(HashSet::new()));
         if total_records.is_none() && ALREADY_WARNED.lock().unwrap().insert(step.clone()) {
             tracing::warn!("creating mesh for {:?} with unknown record count", step);
         }

@@ -262,7 +262,8 @@ async fn sort_by_breakdown_key<F: Field>(
     .await?;
 
     apply_sort_permutation(
-        ctx.narrow(&Step::ApplyPermutationOnBreakdownKey).set_total_records(input.len()),
+        ctx.narrow(&Step::ApplyPermutationOnBreakdownKey)
+            .set_total_records(input.len()),
         input.to_vec(),
         &sort_permutation,
     )

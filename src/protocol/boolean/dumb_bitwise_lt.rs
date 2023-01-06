@@ -189,18 +189,28 @@ mod tests {
         let input = (into_bits(a), into_bits(b));
         let result = world
             .semi_honest(input.clone(), |ctx, (a_share, b_share)| async move {
-                BitwiseLessThan::execute(ctx.set_total_records(1), RecordId::from(0), &a_share, &b_share)
-                    .await
-                    .unwrap()
+                BitwiseLessThan::execute(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &a_share,
+                    &b_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();
 
         let m_result = world
             .malicious(input, |ctx, (a_share, b_share)| async move {
-                BitwiseLessThan::execute(ctx.set_total_records(1), RecordId::from(0), &a_share, &b_share)
-                    .await
-                    .unwrap()
+                BitwiseLessThan::execute(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &a_share,
+                    &b_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();
@@ -266,18 +276,28 @@ mod tests {
         );
         let result = world
             .semi_honest(input.clone(), |ctx, (a_share, b_share)| async move {
-                BitwiseLessThan::execute(ctx.set_total_records(1), RecordId::from(0), &a_share, &b_share)
-                    .await
-                    .unwrap()
+                BitwiseLessThan::execute(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &a_share,
+                    &b_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();
 
         let m_result = world
             .malicious(input, |ctx, (a_share, b_share)| async move {
-                BitwiseLessThan::execute(ctx.set_total_records(1), RecordId::from(0), &a_share, &b_share)
-                    .await
-                    .unwrap()
+                BitwiseLessThan::execute(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &a_share,
+                    &b_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();

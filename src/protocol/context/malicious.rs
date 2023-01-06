@@ -89,13 +89,12 @@ impl<'a, F: Field> MaliciousContext<'a, F> {
     ) -> Result<Vec<MaliciousReplicated<F>>, Error> {
         let ctx = self.set_total_upgrades(input.len());
         let ctx_ref = &ctx;
-        try_join_all(
-            input.into_iter().enumerate().map(|(i, share)| async move {
-                ctx_ref.upgrade_sparse(RecordId::from(i), share, ZeroPositions::Pvvv).await
-            }),
-        )
+        try_join_all(input.into_iter().enumerate().map(|(i, share)| async move {
+            ctx_ref
+                .upgrade_sparse(RecordId::from(i), share, ZeroPositions::Pvvv)
+                .await
+        }))
         .await
-
     }
 
     /// Upgrade a sparse input using this context.
@@ -239,7 +238,12 @@ impl<'a, F: Field> SpecialAccessToMaliciousContext<'a, F> for MaliciousContext<'
         // is not
         // For the same reason, it is not possible to implement Context<F, Share = Replicated<F>>
         // for `MaliciousContext`. Deep clone is the only option
-        let mut ctx = SemiHonestContext::new_with_total_records(self.inner.role, self.inner.prss, self.inner.gateway, self.total_records);
+        let mut ctx = SemiHonestContext::new_with_total_records(
+            self.inner.role,
+            self.inner.prss,
+            self.inner.gateway,
+            self.total_records,
+        );
         ctx.step = self.step;
 
         ctx

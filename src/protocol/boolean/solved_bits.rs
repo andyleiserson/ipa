@@ -161,14 +161,16 @@ mod tests {
         Standard: Distribution<F>,
     {
         let world = TestWorld::new().await;
-        let [rv0, rv1, rv2] = world.semi_honest((), |ctx, ()| async move {
-            let mut outputs = Vec::with_capacity(COUNT);
-            let ctx = ctx.set_total_records(COUNT);
-            for i in 0..COUNT {
-                outputs.push(solved_bits(ctx.clone(), RecordId::from(i)).await.unwrap());
-            }
-            outputs
-        }).await;
+        let [rv0, rv1, rv2] = world
+            .semi_honest((), |ctx, ()| async move {
+                let mut outputs = Vec::with_capacity(COUNT);
+                let ctx = ctx.set_total_records(COUNT);
+                for i in 0..COUNT {
+                    outputs.push(solved_bits(ctx.clone(), RecordId::from(i)).await.unwrap());
+                }
+                outputs
+            })
+            .await;
 
         let results = zip(rv0.into_iter(), zip(rv1.into_iter(), rv2.into_iter()))
             .map(|(r0, (r1, r2))| [r0, r1, r2])
@@ -183,8 +185,7 @@ mod tests {
                 continue; // without incrementing successes
             }
 
-            let [s0, s1, s2] = result
-                .map(Option::unwrap);
+            let [s0, s1, s2] = result.map(Option::unwrap);
 
             // [b]_B must be the same bit lengths
             assert_eq!(s0.b_b.len(), s1.b_b.len());
@@ -229,7 +230,12 @@ mod tests {
         for _ in 0..4 {
             let results = world
                 .malicious(Fp32BitPrime::ZERO, |ctx, share_of_zero| async move {
-                    let share_option = solved_bits(ctx.set_total_records(1).set_total_upgrades(1), RecordId::from(0)).await.unwrap();
+                    let share_option = solved_bits(
+                        ctx.set_total_records(1).set_total_upgrades(1),
+                        RecordId::from(0),
+                    )
+                    .await
+                    .unwrap();
                     match share_option {
                         None => {
                             // This is a 5 in 4B case where `solved_bits()`

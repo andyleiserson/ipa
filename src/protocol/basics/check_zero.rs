@@ -107,9 +107,21 @@ mod tests {
                 counter += 1;
 
                 let protocol_output = tokio::try_join!(
-                    check_zero(context[0].narrow(&iteration).set_total_records(1), record_id, &v_shares[0],),
-                    check_zero(context[1].narrow(&iteration).set_total_records(1), record_id, &v_shares[1],),
-                    check_zero(context[2].narrow(&iteration).set_total_records(1), record_id, &v_shares[2],),
+                    check_zero(
+                        context[0].narrow(&iteration).set_total_records(1),
+                        record_id,
+                        &v_shares[0],
+                    ),
+                    check_zero(
+                        context[1].narrow(&iteration).set_total_records(1),
+                        record_id,
+                        &v_shares[1],
+                    ),
+                    check_zero(
+                        context[2].narrow(&iteration).set_total_records(1),
+                        record_id,
+                        &v_shares[2],
+                    ),
                 )?;
 
                 // All three helpers should always get the same result

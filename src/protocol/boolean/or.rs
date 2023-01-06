@@ -33,17 +33,27 @@ mod tests {
     {
         let result = world
             .semi_honest((a, b), |ctx, (a_share, b_share)| async move {
-                or(ctx.set_total_records(1), RecordId::from(0_u32), &a_share, &b_share)
-                    .await
-                    .unwrap()
+                or(
+                    ctx.set_total_records(1),
+                    RecordId::from(0_u32),
+                    &a_share,
+                    &b_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();
         let m_result = world
             .malicious((a, b), |ctx, (a_share, b_share)| async move {
-                or(ctx.set_total_records(1), RecordId::from(0_u32), &a_share, &b_share)
-                    .await
-                    .unwrap()
+                or(
+                    ctx.set_total_records(1),
+                    RecordId::from(0_u32),
+                    &a_share,
+                    &b_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();

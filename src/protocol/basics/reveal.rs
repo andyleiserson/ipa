@@ -140,7 +140,9 @@ mod tests {
     pub async fn simple() -> Result<(), Error> {
         let mut rng = thread_rng();
         let world = TestWorld::new().await;
-        let ctx = world.contexts::<Fp31>().map(|ctx| ctx.set_total_records(10));
+        let ctx = world
+            .contexts::<Fp31>()
+            .map(|ctx| ctx.set_total_records(10));
 
         for i in 0..10_u32 {
             let secret = rng.gen::<u128>();
@@ -167,7 +169,8 @@ mod tests {
         let world = TestWorld::new().await;
         let sh_ctx = world.contexts::<Fp31>();
         let v = sh_ctx.map(MaliciousValidator::new);
-        let m_ctx: [_; 3] = v.iter()
+        let m_ctx: [_; 3] = v
+            .iter()
             .map(|v| v.context().set_total_records(10).set_total_upgrades(10))
             .collect::<Vec<_>>()
             .try_into()
@@ -183,11 +186,11 @@ mod tests {
             )
             .await;
 
-            let results =
-                join3v(zip(m_ctx.clone().into_iter(), m_shares).map(|(m_ctx, m_share)| async move {
-                    m_ctx.reveal(record_id, &m_share).await
-                }))
-                .await;
+            let results = join3v(
+                zip(m_ctx.clone().into_iter(), m_shares)
+                    .map(|(m_ctx, m_share)| async move { m_ctx.reveal(record_id, &m_share).await }),
+            )
+            .await;
 
             assert_eq!(input, results[0]);
             assert_eq!(input, results[1]);
@@ -203,8 +206,13 @@ mod tests {
         let world = TestWorld::new().await;
         let sh_ctx = world.contexts::<Fp31>();
         let v = sh_ctx.map(MaliciousValidator::new);
-        let m_ctx: [_; 3] = v.iter()
-            .map(|v| v.context().set_total_records(COUNT).set_total_upgrades(COUNT))
+        let m_ctx: [_; 3] = v
+            .iter()
+            .map(|v| {
+                v.context()
+                    .set_total_records(COUNT)
+                    .set_total_upgrades(COUNT)
+            })
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();

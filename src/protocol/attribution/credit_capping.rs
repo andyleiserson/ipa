@@ -34,8 +34,12 @@ pub async fn credit_capping<F: Field>(
     //
     // Step 2. Compute user-level reversed prefix-sums
     //
-    let prefix_summed_credits =
-        credit_prefix_sum(ctx.set_total_records(input_len), input, original_credits.clone()).await?;
+    let prefix_summed_credits = credit_prefix_sum(
+        ctx.set_total_records(input_len),
+        input,
+        original_credits.clone(),
+    )
+    .await?;
 
     //
     // 3. Compute `prefix_summed_credits` >? `cap`
@@ -178,7 +182,10 @@ async fn is_credit_larger_than_cap<F: Field>(
     try_join_all(
         prefix_summed_credits
             .iter()
-            .zip(zip(repeat(ctx.set_total_records(prefix_summed_credits.len())), repeat(cap)))
+            .zip(zip(
+                repeat(ctx.set_total_records(prefix_summed_credits.len())),
+                repeat(cap),
+            ))
             .enumerate()
             .map(|(i, (credit, (ctx, cap)))| {
                 // The buffer inside the generator is `Arc`, so these clones

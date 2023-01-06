@@ -200,11 +200,17 @@ impl<'a, F: Field> MaliciousValidator<'a, F> {
         let (u_share, w_share) = self.propagate_u_and_w().await?;
 
         // This should probably be done in parallel with the futures above
-        let narrow_ctx = self.validate_ctx.narrow(&ValidateStep::RevealR).set_total_records(1);
+        let narrow_ctx = self
+            .validate_ctx
+            .narrow(&ValidateStep::RevealR)
+            .set_total_records(1);
         let r = narrow_ctx.reveal(RECORD_0, &self.r_share).await?;
         let t = u_share - &(w_share * r);
 
-        let check_zero_ctx = self.validate_ctx.narrow(&ValidateStep::CheckZero).set_total_records(1);
+        let check_zero_ctx = self
+            .validate_ctx
+            .narrow(&ValidateStep::CheckZero)
+            .set_total_records(1);
         let is_valid = check_zero(check_zero_ctx, RECORD_0, &t).await?;
 
         if is_valid {
@@ -218,7 +224,10 @@ impl<'a, F: Field> MaliciousValidator<'a, F> {
 
     /// Turns out local values for `u` and `w` into proper replicated shares.
     async fn propagate_u_and_w(&self) -> Result<(Replicated<F>, Replicated<F>), Error> {
-        let propagate_ctx = self.validate_ctx.narrow(&ValidateStep::PropagateUW).set_total_records(2);
+        let propagate_ctx = self
+            .validate_ctx
+            .narrow(&ValidateStep::PropagateUW)
+            .set_total_records(2);
         let channel = propagate_ctx.mesh();
         let helper_right = propagate_ctx.role().peer(Direction::Right);
         let helper_left = propagate_ctx.role().peer(Direction::Left);
@@ -333,7 +342,12 @@ mod tests {
         let result = world
             .semi_honest(a, |ctx, a| async move {
                 let v = MaliciousValidator::new(ctx);
-                let m = v.context().set_total_upgrades(1).upgrade(RecordId::from(0), a).await.unwrap();
+                let m = v
+                    .context()
+                    .set_total_upgrades(1)
+                    .upgrade(RecordId::from(0), a)
+                    .await
+                    .unwrap();
                 v.validate(m).await.unwrap()
             })
             .await;
@@ -357,7 +371,12 @@ mod tests {
                         a
                     };
                     let v = MaliciousValidator::new(ctx);
-                    let m = v.context().set_total_upgrades(1).upgrade(RecordId::from(0), a).await.unwrap();
+                    let m = v
+                        .context()
+                        .set_total_upgrades(1)
+                        .upgrade(RecordId::from(0), a)
+                        .await
+                        .unwrap();
                     match v.validate(m).await {
                         Ok(result) => panic!("Got a result {result:?}"),
                         Err(err) => assert!(matches!(err, Error::MaliciousSecurityCheckFailed)),

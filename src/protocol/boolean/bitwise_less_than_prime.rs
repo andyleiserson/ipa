@@ -294,18 +294,26 @@ mod tests {
         let bits = get_bits::<F>(a, num_bits);
         let result = world
             .semi_honest(bits.clone(), |ctx, x_share| async move {
-                BitwiseLessThanPrime::less_than_prime(ctx.set_total_records(1), RecordId::from(0), &x_share)
-                    .await
-                    .unwrap()
+                BitwiseLessThanPrime::less_than_prime(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &x_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();
 
         let m_result = world
             .malicious(bits, |ctx, x_share| async move {
-                BitwiseLessThanPrime::less_than_prime(ctx.set_total_records(1), RecordId::from(0), &x_share)
-                    .await
-                    .unwrap()
+                BitwiseLessThanPrime::less_than_prime(
+                    ctx.set_total_records(1),
+                    RecordId::from(0),
+                    &x_share,
+                )
+                .await
+                .unwrap()
             })
             .await
             .reconstruct();
