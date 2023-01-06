@@ -153,7 +153,7 @@ mod tests {
     use rand::{distributions::Standard, prelude::Distribution};
     use std::iter::zip;
 
-    /// Execute solved_bits `COUNT` times for `F`. The count should be chosen
+    /// Execute `solved_bits` `COUNT` times for `F`. The count should be chosen
     /// such that the probability of that many consecutive failures in `F` is
     /// negligible (less than 2^-100).
     async fn random_bits<F: Field, const COUNT: usize>()
@@ -214,11 +214,15 @@ mod tests {
 
     #[tokio::test]
     pub async fn fp31() {
+        // Probability of failure for one iteration is 2^-5.
+        // Need 21 runs to reduce failure to < 2^-100.
         random_bits::<Fp31, 21>().await;
     }
 
     #[tokio::test]
     pub async fn fp_32bit_prime() {
+        // Probability of failure for one iteration is 5/2^32 =~ 2^-30.
+        // Need 4 runs to reduce failure to < 2^-100.
         random_bits::<Fp32BitPrime, 4>().await;
     }
 

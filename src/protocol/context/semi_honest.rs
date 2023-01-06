@@ -83,7 +83,6 @@ impl<'a, F: Field> Context<F> for SemiHonestContext<'a, F> {
         }
     }
 
-    #[cfg(debug_assertions)]
     fn is_total_records_known(&self) -> bool {
         self.total_records.is_some()
     }
@@ -92,7 +91,7 @@ impl<'a, F: Field> Context<F> for SemiHonestContext<'a, F> {
         Self {
             inner: Arc::clone(&self.inner),
             step: self.step.clone(),
-            total_records: Some(total_records.try_into().unwrap()),
+            total_records: NonZeroUsize::new(total_records),
             _marker: PhantomData::default(),
         }
     }

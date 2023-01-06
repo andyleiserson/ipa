@@ -18,11 +18,8 @@ use crate::{
     telemetry::{labels::STEP, metrics::RECORDS_SENT},
 };
 use futures::StreamExt;
-use once_cell::sync::Lazy;
-use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroUsize;
-use std::sync::Mutex;
 use std::time::Duration;
 use std::{io, panic};
 use tinyvec::array_vec;
@@ -259,7 +256,7 @@ impl Gateway {
     /// `Mesh::send` or `Mesh::receive` methods are called.
     ///
     /// ## Panics
-    /// If the `ALREADY_WARNED` mutex is poisoned.
+    /// In `debug_assertions` config, if the `ALREADY_WARNED` mutex is poisoned.
     #[must_use]
     pub fn mesh<'a, 'b>(
         &'a self,
@@ -268,10 +265,17 @@ impl Gateway {
     ) -> Mesh<'a, 'b> {
         // TODO: to be changed to panic or assert once all instances are eliminated.
         // Note: update panic docs above.
-        static ALREADY_WARNED: Lazy<Mutex<HashSet<Step>>> =
-            Lazy::new(|| Mutex::new(HashSet::new()));
-        if total_records.is_none() && ALREADY_WARNED.lock().unwrap().insert(step.clone()) {
-            tracing::warn!("creating mesh for {:?} with unknown record count", step);
+        #[cfg(debug_assertions)]
+        {
+            use once_cell::sync::Lazy;
+            use std::collections::HashSet;
+            use std::sync::Mutex;
+
+            static ALREADY_WARNED: Lazy<Mutex<HashSet<Step>>> =
+                Lazy::new(|| Mutex::new(HashSet::new()));
+            if total_records.is_none() && ALREADY_WARNED.lock().unwrap().insert(step.clone()) {
+                tracing::warn!("creating mesh for {:?} with unknown record count", step);
+            }
         }
         Mesh {
             gateway: self,

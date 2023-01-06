@@ -138,13 +138,14 @@ mod tests {
 
     #[tokio::test]
     pub async fn simple() -> Result<(), Error> {
+        const COUNT: usize = 10;
         let mut rng = thread_rng();
         let world = TestWorld::new().await;
         let ctx = world
             .contexts::<Fp31>()
-            .map(|ctx| ctx.set_total_records(10));
+            .map(|ctx| ctx.set_total_records(COUNT));
 
-        for i in 0..10_u32 {
+        for i in 0..COUNT {
             let secret = rng.gen::<u128>();
             let input = Fp31::from(secret);
             let share = input.share_with(&mut rng);
@@ -165,18 +166,23 @@ mod tests {
 
     #[tokio::test]
     pub async fn malicious() -> Result<(), Error> {
+        const COUNT: usize = 10;
         let mut rng = thread_rng();
         let world = TestWorld::new().await;
         let sh_ctx = world.contexts::<Fp31>();
         let v = sh_ctx.map(MaliciousValidator::new);
         let m_ctx: [_; 3] = v
             .iter()
-            .map(|v| v.context().set_total_records(10).set_total_upgrades(10))
+            .map(|v| {
+                v.context()
+                    .set_total_records(COUNT)
+                    .set_total_upgrades(COUNT)
+            })
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
 
-        for i in 0..10_u32 {
+        for i in 0..COUNT {
             let record_id = RecordId::from(i);
             let input: Fp31 = rng.gen();
 
@@ -187,7 +193,7 @@ mod tests {
             .await;
 
             let results = join3v(
-                zip(m_ctx.clone().into_iter(), m_shares)
+                zip(m_ctx.clone(), m_shares)
                     .map(|(m_ctx, m_share)| async move { m_ctx.reveal(record_id, &m_share).await }),
             )
             .await;

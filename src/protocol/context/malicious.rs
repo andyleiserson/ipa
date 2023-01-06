@@ -175,7 +175,6 @@ impl<'a, F: Field> Context<F> for MaliciousContext<'a, F> {
         }
     }
 
-    #[cfg(debug_assertions)]
     fn is_total_records_known(&self) -> bool {
         self.total_records.is_some()
     }

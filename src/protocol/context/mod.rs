@@ -44,7 +44,6 @@ pub trait Context<V: ArithmeticShare>:
     fn narrow<S: Substep + ?Sized>(&self, step: &S) -> Self;
 
     /// Returns true if the context has a known total number of records.
-    #[cfg(debug_assertions)]
     fn is_total_records_known(&self) -> bool;
 
     /// Sets the context's total number of records field. Communication channels are

@@ -93,7 +93,7 @@ mod tests {
     #[tokio::test]
     async fn basic() -> Result<(), Error> {
         let world = TestWorld::new().await;
-        let context = world.contexts::<Fp31>();
+        let context = world.contexts::<Fp31>().map(|ctx| ctx.set_total_records(1));
         let mut rng = thread_rng();
         let mut counter = 0_u32;
 
@@ -107,21 +107,9 @@ mod tests {
                 counter += 1;
 
                 let protocol_output = tokio::try_join!(
-                    check_zero(
-                        context[0].narrow(&iteration).set_total_records(1),
-                        record_id,
-                        &v_shares[0],
-                    ),
-                    check_zero(
-                        context[1].narrow(&iteration).set_total_records(1),
-                        record_id,
-                        &v_shares[1],
-                    ),
-                    check_zero(
-                        context[2].narrow(&iteration).set_total_records(1),
-                        record_id,
-                        &v_shares[2],
-                    ),
+                    check_zero(context[0].narrow(&iteration), record_id, &v_shares[0],),
+                    check_zero(context[1].narrow(&iteration), record_id, &v_shares[1],),
+                    check_zero(context[2].narrow(&iteration), record_id, &v_shares[2],),
                 )?;
 
                 // All three helpers should always get the same result
