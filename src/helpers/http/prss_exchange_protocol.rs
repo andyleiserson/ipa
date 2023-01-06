@@ -102,6 +102,7 @@ pub struct PublicKeyBytesBuilder {
 }
 
 impl PublicKeyBytesBuilder {
+    #[allow(clippy::cast_possible_truncation)]
     const FULL_COUNT: u8 = PUBLIC_KEY_CHUNK_COUNT as u8;
 
     pub fn empty() -> Self {

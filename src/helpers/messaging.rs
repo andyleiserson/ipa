@@ -114,6 +114,9 @@ impl Mesh<'_, '_> {
     ///
     /// # Errors
     /// Returns an error if it fails to send the message or if there is a serialization error.
+    ///
+    /// # Panics
+    /// If the context has a total record count set and the `record_id` to be sent is out of range.
     pub async fn send<T: Message>(
         &self,
         dest: Role,
@@ -152,6 +155,9 @@ impl Mesh<'_, '_> {
     ///
     /// # Errors
     /// Returns an error if it fails to receive the message or if a deserialization error occurred
+    ///
+    /// # Panics
+    /// If the context has a total record count set and the `record_id` to be received is out of range.
     pub async fn receive<T: Message>(&self, source: Role, record_id: RecordId) -> Result<T, Error> {
         if let Some(count) = self.total_records {
             assert!(
@@ -251,6 +257,9 @@ impl Gateway {
     /// This method makes no guarantee that the communication channel will actually be established
     /// between this helper and every other one. The actual connection may be created only when
     /// `Mesh::send` or `Mesh::receive` methods are called.
+    ///
+    /// ## Panics
+    /// If the `ALREADY_WARNED` mutex is poisoned.
     #[must_use]
     pub fn mesh<'a, 'b>(
         &'a self,
@@ -258,6 +267,7 @@ impl Gateway {
         total_records: Option<NonZeroUsize>,
     ) -> Mesh<'a, 'b> {
         // TODO: to be changed to panic or assert once all instances are eliminated.
+        // Note: update panic docs above.
         static ALREADY_WARNED: Lazy<Mutex<HashSet<Step>>> =
             Lazy::new(|| Mutex::new(HashSet::new()));
         if total_records.is_none() && ALREADY_WARNED.lock().unwrap().insert(step.clone()) {
