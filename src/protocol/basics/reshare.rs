@@ -318,7 +318,7 @@ mod tests {
             for malicious_actor in &[Role::H2, Role::H3] {
                 world
                     .semi_honest(a, |ctx, a| async move {
-                        let v = MaliciousValidator::new(ctx);
+                        let v = MaliciousValidator::new(ctx, 1);
                         let m_ctx = v.context().set_total_upgrades(1);
                         let record_id = RecordId::from(0);
                         let m_a = m_ctx.upgrade(RecordId::from(0), a).await.unwrap();

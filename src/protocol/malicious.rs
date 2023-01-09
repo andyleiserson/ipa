@@ -150,7 +150,7 @@ pub struct MaliciousValidator<'a, F: Field> {
 impl<'a, F: Field> MaliciousValidator<'a, F> {
     #[must_use]
     #[allow(clippy::needless_pass_by_value)]
-    pub fn new(ctx: SemiHonestContext<'a, F>) -> MaliciousValidator<F> {
+    pub fn new(ctx: SemiHonestContext<'a, F>, _upgrades: usize) -> MaliciousValidator<F> {
         // Use the current step in the context for initialization.
         let r_share = ctx.prss().generate_replicated(RECORD_0);
         let prss = ctx.prss();
@@ -297,7 +297,7 @@ mod tests {
 
         let futures =
             zip(context, zip(a_shares, b_shares)).map(|(ctx, (a_share, b_share))| async move {
-                let v = MaliciousValidator::new(ctx);
+                let v = MaliciousValidator::new(ctx, 2);
                 let m_ctx = v.context().set_total_upgrades(2);
 
                 let a_malicious = m_ctx.upgrade(RecordId::from(0), a_share).await?;
@@ -341,7 +341,7 @@ mod tests {
 
         let result = world
             .semi_honest(a, |ctx, a| async move {
-                let v = MaliciousValidator::new(ctx);
+                let v = MaliciousValidator::new(ctx, 1);
                 let m = v
                     .context()
                     .set_total_upgrades(1)
@@ -370,7 +370,7 @@ mod tests {
                     } else {
                         a
                     };
-                    let v = MaliciousValidator::new(ctx);
+                    let v = MaliciousValidator::new(ctx, 1);
                     let m = v
                         .context()
                         .set_total_upgrades(1)
@@ -430,7 +430,7 @@ mod tests {
             .into_iter()
             .zip([h1_shares, h2_shares, h3_shares])
             .map(|(ctx, input_shares)| async move {
-                let v = MaliciousValidator::new(ctx);
+                let v = MaliciousValidator::new(ctx, COUNT);
                 let m_ctx = v.context().set_total_upgrades(COUNT);
 
                 let m_input = try_join_all(

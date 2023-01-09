@@ -170,7 +170,7 @@ mod tests {
         let mut rng = thread_rng();
         let world = TestWorld::new().await;
         let sh_ctx = world.contexts::<Fp31>();
-        let v = sh_ctx.map(MaliciousValidator::new);
+        let v = sh_ctx.map(|ctx| MaliciousValidator::new(ctx, COUNT));
         let m_ctx: [_; 3] = v
             .iter()
             .map(|v| {
@@ -211,7 +211,7 @@ mod tests {
         let mut rng = thread_rng();
         let world = TestWorld::new().await;
         let sh_ctx = world.contexts::<Fp31>();
-        let v = sh_ctx.map(MaliciousValidator::new);
+        let v = sh_ctx.map(|ctx| MaliciousValidator::new(ctx, COUNT));
         let m_ctx: [_; 3] = v
             .iter()
             .map(|v| {

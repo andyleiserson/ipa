@@ -239,6 +239,12 @@ pub const RECORD_1: RecordId = RecordId(1);
 pub const RECORD_2: RecordId = RecordId(2);
 pub const RECORD_3: RecordId = RecordId(3);
 
+impl RecordId {
+    pub fn new() -> Self {
+        RECORD_0
+    }
+}
+
 impl From<u32> for RecordId {
     fn from(v: u32) -> Self {
         RecordId(v)

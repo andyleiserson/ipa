@@ -224,7 +224,7 @@ mod tests {
             .semi_honest(match_key, |ctx, mk_share| async move {
                 let triple = convert_bit_local::<Fp31>(ctx.role(), BITNUM, &mk_share);
 
-                let v = MaliciousValidator::new(ctx);
+                let v = MaliciousValidator::new(ctx, 1);
                 let m_ctx = v.context().set_total_upgrades(1);
                 let m_triple = m_ctx
                     .upgrade_bit_triple(&BitOpStep::from(0), RecordId::from(0), triple)
@@ -286,7 +286,7 @@ mod tests {
                     let triple = convert_bit_local::<Fp32BitPrime>(ctx.role(), BITNUM, &mk_share);
                     let tweaked = tweak.flip_bit(ctx.role(), triple);
 
-                    let v = MaliciousValidator::new(ctx);
+                    let v = MaliciousValidator::new(ctx, 1);
                     let m_ctx = v.context().set_total_upgrades(1);
                     let m_triple = m_ctx
                         .upgrade_bit_triple(&BitOpStep::from(0), RecordId::from(0), tweaked)

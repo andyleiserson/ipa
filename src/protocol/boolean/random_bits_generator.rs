@@ -99,7 +99,7 @@ mod tests {
         world.set_total_records(None);
         let contexts = world.contexts::<Fp31>();
 
-        let validators = contexts.map(MaliciousValidator::new);
+        let validators = contexts.map(|ctx| MaliciousValidator::new(ctx, 0));
         let rbg = validators
             .iter()
             .map(|v| RandomBitsGenerator::new(v.context()))

@@ -192,7 +192,8 @@ pub(in crate::protocol) mod test {
         protocol::{
             basics::{mul::sparse::MultiplyWork, MultiplyZeroPositions, SecureMul, ZeroPositions},
             malicious::MaliciousValidator,
-            BitOpStep, RECORD_0,
+            RECORD_0,
+            RECORD_1,
         },
         rand::{thread_rng, Rng},
         secret_sharing::Replicated,
@@ -390,7 +391,6 @@ pub(in crate::protocol) mod test {
 
     #[tokio::test]
     async fn check_output_malicious() {
-        let world = TestWorld::new().await;
         let mut rng = thread_rng();
 
         for &a in ZeroPositions::all() {
@@ -401,13 +401,14 @@ pub(in crate::protocol) mod test {
 
                 let v1 = SparseField::new(rng.gen::<Fp31>(), a);
                 let v2 = SparseField::new(rng.gen::<Fp31>(), b);
+                let world = TestWorld::new().await;
                 let result = world
                     .semi_honest((v1, v2), |ctx, (v_a, v_b)| async move {
-                        let v = MaliciousValidator::new(ctx);
-                        let m_ctx = v.context().set_total_upgrades(1);
+                        let v = MaliciousValidator::new(ctx, 1);
+                        let m_ctx = v.context().set_total_upgrades(2);
                         let (m_a, m_b) = try_join(
-                            m_ctx.upgrade_with_sparse(&BitOpStep::from(0), RECORD_0, v_a, a),
-                            m_ctx.upgrade_with_sparse(&BitOpStep::from(1), RECORD_0, v_b, b),
+                            m_ctx.upgrade_sparse(RECORD_0, v_a, a),
+                            m_ctx.upgrade_sparse(RECORD_1, v_b, b),
                         )
                         .await
                         .unwrap();

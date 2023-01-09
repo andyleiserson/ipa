@@ -1,7 +1,7 @@
 use crate::ff::Field;
 use crate::protocol::boolean::RandomBitsShare;
 use crate::protocol::context::MaliciousContext;
-use crate::protocol::{BitOpStep, RecordId, Substep};
+use crate::protocol::{RecordId, Substep};
 use crate::rand::Rng;
 use crate::secret_sharing::{
     IntoShares, MaliciousReplicated, Replicated, SecretSharing, XorReplicated,
@@ -80,24 +80,23 @@ impl AsRef<str> for IntoMaliciousStep {
 /// For upgrading various shapes of replicated share to malicious.
 #[async_trait]
 pub trait IntoMalicious<F: Field, M>: Sized {
-    async fn upgrade(self, ctx: MaliciousContext<'_, F>) -> M {
-        self.upgrade_with(ctx, &IntoMaliciousStep).await
-    }
-    async fn upgrade_with<SS: Substep>(self, ctx: MaliciousContext<'_, F>, step: &SS) -> M;
+    async fn upgrade(self, ctx: MaliciousContext<'_, F>, record_id: &mut RecordId) -> M;
+    fn upgrade_count(&self) -> usize;
 }
 
 #[async_trait]
 impl<F: Field> IntoMalicious<F, MaliciousReplicated<F>> for Replicated<F> {
-    async fn upgrade_with<SS: Substep>(
+    async fn upgrade(
         self,
         ctx: MaliciousContext<'_, F>,
-        step: &SS,
+        record_id: &mut RecordId,
     ) -> MaliciousReplicated<F> {
-        ctx.set_total_upgrades(1)
-            .upgrade_with(step, RecordId::from(0_u32), self)
+        ctx.upgrade(*record_id, self)
             .await
             .unwrap()
     }
+
+    fn upgrade_count(&self) -> usize { 1 }
 }
 
 #[async_trait]
@@ -111,12 +110,14 @@ where
 {
     // Note that this implementation doesn't work with arbitrary nesting.
     // For that, we'd need a `.narrow_for_upgrade()` function on the context.
-    async fn upgrade_with<SS: Substep>(self, ctx: MaliciousContext<'_, F>, _step: &SS) -> (TM, UM) {
-        join(
-            self.0.upgrade_with(ctx.clone(), &BitOpStep::from(0)),
-            self.1.upgrade_with(ctx, &BitOpStep::from(1)),
+    async fn upgrade(self, ctx: MaliciousContext<'_, F>, record_id: &mut RecordId) -> (TM, UM) {
+        (
+            self.0.upgrade(ctx.clone(), record_id).await,
+            self.1.upgrade(ctx, record_id).await,
         )
-        .await
+    }
+    fn upgrade_count(&self) -> usize {
+        self.0.upgrade_count() + self.1.upgrade_count()
     }
 }
 
@@ -129,21 +130,20 @@ where
 {
     // Note that this implementation doesn't work with arbitrary nesting.
     // For that, we'd need a `.narrow_for_upgrade()` function on the context.
-    async fn upgrade_with<SS: Substep>(
+    async fn upgrade(
         self,
         ctx: MaliciousContext<'_, F>,
-        step: &SS,
+        record_id: &mut RecordId,
     ) -> Vec<MaliciousReplicated<F>> {
-        let iter = self.into_iter();
-        let ctx = ctx.set_total_upgrades(iter.len());
         try_join_all(
-            zip(repeat(ctx), iter.enumerate()).map(|(ctx, (i, share))| async move {
-                ctx.upgrade_with(step, RecordId::from(i), share).await
+            zip(repeat(ctx), self.into_iter().enumerate()).map(|(ctx, (i, share))| async move {
+                ctx.upgrade(RecordId::from(i), share).await
             }),
         )
         .await
         .unwrap()
     }
+    fn upgrade_count(&self) -> usize { 1 /* TODO */ }
 }
 
 /// A trait that is helpful for reconstruction of values in tests.

@@ -268,7 +268,7 @@ pub async fn malicious_generate_permutation<'a, F>(
 where
     F: Field,
 {
-    let mut malicious_validator = MaliciousValidator::new(sh_ctx.narrow(&Sort(0)));
+    let mut malicious_validator = MaliciousValidator::new(sh_ctx.narrow(&Sort(0)), 5 /* TODO */);
     let mut m_ctx_bit = malicious_validator.context();
     assert_eq!(sort_keys.len(), num_bits as usize);
 
@@ -287,7 +287,7 @@ where
         )
         .await?;
 
-        malicious_validator = MaliciousValidator::new(sh_ctx.narrow(&Sort(bit_num)));
+        malicious_validator = MaliciousValidator::new(sh_ctx.narrow(&Sort(bit_num)), 5 /* TODO */);
         m_ctx_bit = malicious_validator.context();
         let upgraded_sort_keys = m_ctx_bit
             .upgrade_vector(sort_keys[bit_num as usize].clone())

@@ -110,38 +110,6 @@ impl<'a, F: Field> MaliciousContext<'a, F> {
         self.inner.upgrade(record_id, input, zeros_at).await
     }
 
-    /// Upgrade an input for a specific bit index using this context.  Use this for
-    /// inputs that have multiple bit positions in place of `upgrade()`.
-    /// # Errors
-    /// When the multiplication fails. This does not include additive attacks
-    /// by other helpers.  These are caught later.
-    pub async fn upgrade_with<SS: Substep>(
-        &self,
-        step: &SS,
-        record_id: RecordId,
-        input: Replicated<F>,
-    ) -> Result<MaliciousReplicated<F>, Error> {
-        self.upgrade_with_sparse(step, record_id, input, ZeroPositions::Pvvv)
-            .await
-    }
-
-    /// Upgrade an input for a specific bit index using this context.  Use this for
-    /// inputs that have multiple bit positions in place of `upgrade()`.
-    /// # Errors
-    /// When the multiplication fails. This does not include additive attacks
-    /// by other helpers.  These are caught later.
-    pub async fn upgrade_with_sparse<SS: Substep>(
-        &self,
-        step: &SS,
-        record_id: RecordId,
-        input: Replicated<F>,
-        zeros_at: ZeroPositions,
-    ) -> Result<MaliciousReplicated<F>, Error> {
-        self.inner
-            .upgrade_with(step, record_id, input, zeros_at)
-            .await
-    }
-
     /// Upgrade an bit conversion triple for a specific bit.
     /// # Errors
     /// When the multiplication fails. This does not include additive attacks
@@ -335,17 +303,6 @@ impl<'a, F: Field> ContextInner<'a, F> {
         zeros_at: ZeroPositions,
     ) -> Result<MaliciousReplicated<F>, Error> {
         self.upgrade_one(self.upgrade_ctx.clone(), record_id, x, zeros_at)
-            .await
-    }
-
-    async fn upgrade_with<SS: Substep>(
-        &self,
-        step: &SS,
-        record_id: RecordId,
-        x: Replicated<F>,
-        zeros_at: ZeroPositions,
-    ) -> Result<MaliciousReplicated<F>, Error> {
-        self.upgrade_one(self.upgrade_ctx.narrow(step), record_id, x, zeros_at)
             .await
     }
 

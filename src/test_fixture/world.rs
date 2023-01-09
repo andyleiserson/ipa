@@ -29,7 +29,7 @@ use std::{fmt::Debug, iter::zip, sync::Arc};
 
 use crate::helpers::network::Network;
 use crate::helpers::RoleAssignment;
-use crate::protocol::{QueryId, Substep};
+use crate::protocol::{QueryId, Substep, RecordId};
 use crate::secret_sharing::IntoShares;
 use crate::telemetry::stats::Metrics;
 use crate::telemetry::StepStatsCsvExporter;
@@ -274,8 +274,8 @@ where
     {
         let (m_results, r_shares, output) = split_array_of_tuples(
             self.semi_honest(input, |ctx, share| async {
-                let v = MaliciousValidator::new(ctx);
-                let m_share = share.upgrade(v.context()).await;
+                let v = MaliciousValidator::new(ctx, 5 /* TODO */);
+                let m_share = share.upgrade(v.context(), &mut RecordId::new()).await;
                 let m_result = helper_fn(v.context(), m_share).await;
                 let m_result_clone = m_result.clone();
                 let r_share = v.r_share().clone();
