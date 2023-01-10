@@ -74,7 +74,6 @@ mod test {
 
     use crate::ff::{Field, Fp31};
     use crate::protocol::basics::sum_of_product::SecureSop;
-    use crate::protocol::context::Context;
     use crate::protocol::RecordId;
     use crate::test_fixture::{Reconstruct, Runner, TestWorld};
 
@@ -119,8 +118,7 @@ mod test {
             .semi_honest((av, bv), |ctx, (a, b)| async move {
                 let a_refs = a.iter().collect::<Vec<_>>();
                 let b_refs = b.iter().collect::<Vec<_>>();
-                ctx.set_total_records(1)
-                    .sum_of_products(RecordId::from(0), a_refs.as_slice(), b_refs.as_slice())
+                ctx.sum_of_products(RecordId::from(0), a_refs.as_slice(), b_refs.as_slice())
                     .await
                     .unwrap()
             })
@@ -142,8 +140,7 @@ mod test {
                 let a_refs = a_share.iter().collect::<Vec<_>>();
                 let b_refs = b_share.iter().collect::<Vec<_>>();
 
-                ctx.set_total_records(1)
-                    .sum_of_products(RecordId::from(0), a_refs.as_slice(), b_refs.as_slice())
+                ctx.sum_of_products(RecordId::from(0), a_refs.as_slice(), b_refs.as_slice())
                     .await
                     .unwrap()
             })

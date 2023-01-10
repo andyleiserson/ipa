@@ -60,6 +60,7 @@ impl<'a, F: Field> SemiHonestContext<'a, F> {
     ) -> MaliciousContext<'a, F> {
         let upgrade_ctx = self.narrow(upgrade_step);
         MaliciousContext::new(&self, malicious_step, upgrade_ctx, accumulator, r_share)
+            .set_total_records(self.total_records.map_or(0, NonZeroUsize::get))
     }
 }
 

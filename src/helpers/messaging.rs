@@ -390,9 +390,10 @@ mod tests {
         config.gateway_config.send_buffer_config.batch_count = 3; // keep 3 at a time
 
         let world = Box::leak(Box::new(TestWorld::new_with(config).await));
+        world.set_total_records(NonZeroUsize::new(2));
         let contexts = world.contexts::<Fp31>();
-        let sender_ctx = contexts[0].narrow("reordering-test").set_total_records(2);
-        let recv_ctx = contexts[1].narrow("reordering-test").set_total_records(2);
+        let sender_ctx = contexts[0].narrow("reordering-test");
+        let recv_ctx = contexts[1].narrow("reordering-test");
 
         // send record 1 first and wait for confirmation before sending record 0.
         // when gateway received record 0 it triggers flush so it must make sure record 1 is also

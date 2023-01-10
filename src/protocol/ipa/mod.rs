@@ -242,7 +242,7 @@ pub mod tests {
         const EXPECTED: &[[u128; 2]] = &[[0, 0], [1, 2], [2, 3]];
         const MAX_BREAKDOWN_KEY: u128 = 3;
 
-        let world = TestWorld::new().await;
+        let mut world = TestWorld::new().await;
 
         //   match key, is_trigger, breakdown_key, trigger_value
         let records = [
@@ -279,6 +279,7 @@ pub mod tests {
         ];
 
         let result = world
+            .set_total_records(None)
             .semi_honest(records, |ctx, input_rows| async move {
                 ipa::<Fp31>(ctx, &input_rows, 20, PER_USER_CAP, MAX_BREAKDOWN_KEY)
                     .await
@@ -309,7 +310,7 @@ pub mod tests {
         const MAX_TRIGGER_VALUE: u128 = 5;
         let max_match_key: u64 = BATCHSIZE / 10;
 
-        let world = TestWorld::new().await;
+        let mut world = TestWorld::new().await;
         let mut rng = thread_rng();
 
         let mut records: Vec<IPAInputTestRow> = Vec::new();
@@ -323,6 +324,7 @@ pub mod tests {
             ));
         }
         let result = world
+            .set_total_records(None)
             .semi_honest(records, |ctx, input_rows| async move {
                 ipa::<Fp32BitPrime>(ctx, &input_rows, 20, PER_USER_CAP, MAX_BREAKDOWN_KEY)
                     .await

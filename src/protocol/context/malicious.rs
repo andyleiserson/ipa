@@ -183,7 +183,7 @@ impl<'a, F: Field> Context<F> for MaliciousContext<'a, F> {
         Self {
             inner: Arc::clone(&self.inner),
             step: self.step.clone(),
-            total_records: Some(total_records.try_into().unwrap()),
+            total_records: NonZeroUsize::new(total_records),
         }
     }
 

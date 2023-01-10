@@ -234,12 +234,9 @@ mod tests {
         for _ in 0..4 {
             let results = world
                 .malicious(Fp32BitPrime::ZERO, |ctx, share_of_zero| async move {
-                    let share_option = solved_bits(
-                        ctx.set_total_records(1).set_total_upgrades(1),
-                        RecordId::from(0),
-                    )
-                    .await
-                    .unwrap();
+                    let share_option = solved_bits(ctx.set_total_upgrades(1), RecordId::from(0))
+                        .await
+                        .unwrap();
                     match share_option {
                         None => {
                             // This is a 5 in 4B case where `solved_bits()`

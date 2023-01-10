@@ -79,12 +79,13 @@ where
 #[cfg(all(test, not(feature = "shuttle")))]
 mod test {
     use crate::ff::{Field, Fp31};
-    use crate::protocol::{basics::SecureMul, context::Context, RecordId};
+    use crate::protocol::{basics::SecureMul, RecordId};
     use crate::rand::{thread_rng, Rng};
     use crate::test_fixture::{Reconstruct, Runner, TestWorld};
     use futures::future::try_join_all;
     use rand::distributions::{Distribution, Standard};
     use std::iter::{repeat, zip};
+    use std::num::NonZeroUsize;
 
     #[tokio::test]
     async fn basic() {
@@ -109,10 +110,7 @@ mod test {
 
         let res = world
             .semi_honest((a, b), |ctx, (a, b)| async move {
-                ctx.set_total_records(1)
-                    .multiply(RecordId::from(0), &a, &b)
-                    .await
-                    .unwrap()
+                ctx.multiply(RecordId::from(0), &a, &b).await.unwrap()
             })
             .await;
 
@@ -126,24 +124,20 @@ mod test {
     #[tokio::test]
     pub async fn concurrent_mul() {
         const COUNT: usize = 10;
-        let world = TestWorld::new().await;
+        let mut world = TestWorld::new().await;
 
         let mut rng = thread_rng();
         let a: Vec<_> = (0..COUNT).map(|_| rng.gen::<Fp31>()).collect();
         let b: Vec<_> = (0..COUNT).map(|_| rng.gen::<Fp31>()).collect();
         let expected: Vec<_> = zip(a.iter(), b.iter()).map(|(&a, &b)| a * b).collect();
         let results = world
+            .set_total_records(NonZeroUsize::new(COUNT))
             .semi_honest((a, b), |ctx, (a_shares, b_shares)| async move {
-                try_join_all(
-                    zip(
-                        repeat(ctx.set_total_records(COUNT)),
-                        zip(a_shares, b_shares),
-                    )
-                    .enumerate()
-                    .map(|(i, (ctx, (a_share, b_share)))| async move {
+                try_join_all(zip(repeat(ctx), zip(a_shares, b_shares)).enumerate().map(
+                    |(i, (ctx, (a_share, b_share)))| async move {
                         ctx.multiply(RecordId::from(i), &a_share, &b_share).await
-                    }),
-                )
+                    },
+                ))
                 .await
                 .unwrap()
             })
@@ -162,8 +156,7 @@ mod test {
 
         let result = world
             .semi_honest((a, b), |ctx, (a_share, b_share)| async move {
-                ctx.set_total_records(1)
-                    .multiply(RecordId::from(0), &a_share, &b_share)
+                ctx.multiply(RecordId::from(0), &a_share, &b_share)
                     .await
                     .unwrap()
             })

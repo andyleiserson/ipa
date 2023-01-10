@@ -100,7 +100,7 @@ where
 mod test {
     use crate::{
         ff::Fp31,
-        protocol::{basics::SecureMul, context::Context, RecordId},
+        protocol::{basics::SecureMul, RecordId},
         rand::{thread_rng, Rng},
         test_fixture::{Reconstruct, Runner, TestWorld},
     };
@@ -115,10 +115,7 @@ mod test {
 
         let res = world
             .malicious((a, b), |ctx, (a, b)| async move {
-                ctx.set_total_records(1)
-                    .multiply(RecordId::from(0), &a, &b)
-                    .await
-                    .unwrap()
+                ctx.multiply(RecordId::from(0), &a, &b).await.unwrap()
             })
             .await;
 

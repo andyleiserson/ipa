@@ -23,6 +23,7 @@ use crate::{
 use std::io::stdout;
 
 use std::mem::ManuallyDrop;
+use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicBool;
 use std::{fmt::Debug, iter::zip, sync::Arc};
 
@@ -50,6 +51,7 @@ pub struct TestWorld {
     executions: AtomicUsize,
     metrics_handle: MetricsHandle,
     joined: AtomicBool,
+    total_records: Option<NonZeroUsize>,
     _network: InMemoryNetwork,
 }
 
@@ -128,6 +130,7 @@ impl TestWorld {
             executions: AtomicUsize::new(0),
             metrics_handle,
             joined: AtomicBool::new(false),
+            total_records: NonZeroUsize::new(1),
             _network: network,
         }
     }
@@ -137,6 +140,11 @@ impl TestWorld {
     pub async fn new() -> TestWorld {
         let config = TestWorldConfig::default();
         Self::new_with(config).await
+    }
+
+    pub fn set_total_records(&mut self, total_records: Option<NonZeroUsize>) -> &mut Self {
+        self.total_records = total_records;
+        self
     }
 
     /// Creates protocol contexts for 3 helpers
@@ -150,6 +158,7 @@ impl TestWorld {
             .map(|(role, (participant, gateway))| {
                 SemiHonestContext::new(*role, participant, gateway)
                     .narrow(&Self::execution_step(execution))
+                    .set_total_records(self.total_records.map_or(0, NonZeroUsize::get))
             })
             .collect::<Vec<_>>()
             .try_into()

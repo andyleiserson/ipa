@@ -79,7 +79,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn semi_honest() {
-        let world = TestWorld::new().await;
+        let mut world = TestWorld::new().await;
+        world.set_total_records(None);
         let [c0, c1, c2] = world.contexts::<Fp31>();
 
         let rbg0 = RandomBitsGenerator::new(c0);
@@ -94,7 +95,8 @@ mod tests {
 
     #[tokio::test]
     pub async fn malicious() {
-        let world = TestWorld::new().await;
+        let mut world = TestWorld::new().await;
+        world.set_total_records(None);
         let contexts = world.contexts::<Fp31>();
 
         let validators = contexts.map(MaliciousValidator::new);
