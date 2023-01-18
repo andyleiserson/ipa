@@ -23,7 +23,6 @@ pub enum SortStep {
     MultiApplyInv(u32),
     //malicious features
     MaliciousUpgradeContext,
-    MaliciousUpgradeInput(u32),
 }
 
 impl Substep for SortStep {}
@@ -41,7 +40,6 @@ impl AsRef<str> for SortStep {
             Self::MultiApplyInv(i) => MULTI_APPLY_INV[usize::try_from(*i).unwrap()],
             //malicious features
             Self::MaliciousUpgradeContext => "malicious_upgrade_context",
-            Self::MaliciousUpgradeInput(i) => MALICIOUS_UPGRADE_INPUT[usize::try_from(*i).unwrap()],
         }
     }
 }
