@@ -19,7 +19,7 @@ use std::iter::repeat;
 use super::{compose::compose, secureapplyinv::secureapplyinv};
 use crate::protocol::context::SemiHonestContext;
 use crate::{
-    protocol::sort::SortStep::{MaliciousUpgradeContext, MaliciousUpgradeInput},
+    protocol::sort::SortStep::MaliciousUpgradeContext,
     secret_sharing::replicated::malicious::AdditiveShare as MaliciousReplicated,
 };
 use futures::future::try_join_all;
@@ -166,14 +166,7 @@ where
 
     let last_bit_num = std::cmp::min(num_multi_bits, num_bits);
 
-    let upgraded_sort_keys = try_join_all((0..last_bit_num).zip(repeat(m_ctx.clone())).map(
-        |(i, m_ctx)| async move {
-            m_ctx
-                .upgrade_vector(&MaliciousUpgradeInput(i), sort_keys[i as usize].clone())
-                .await
-        },
-    ))
-    .await?;
+    let upgraded_sort_keys = m_ctx.upgrade(sort_keys[0..last_bit_num as usize].to_owned()).await?;
     let lsb_permutation =
         multi_bit_permutation(m_ctx_0.narrow(&BitPermutationStep), &upgraded_sort_keys).await?;
     let input_len = u32::try_from(sort_keys[0].len()).unwrap(); // safe, we don't sort more that 1B rows
@@ -193,15 +186,7 @@ where
         m_ctx_bit = malicious_validator.context();
 
         let last_bit_num = std::cmp::min(bit_num + num_multi_bits, num_bits);
-        let upgraded_sort_keys =
-            &try_join_all((bit_num..last_bit_num).zip(repeat(m_ctx_bit.clone())).map(
-                |(i, m_ctx_bit)| async move {
-                    m_ctx_bit
-                        .upgrade_vector(&MaliciousUpgradeInput(i), sort_keys[i as usize].clone())
-                        .await
-                },
-            ))
-            .await?;
+        let upgraded_sort_keys = &m_ctx_bit.upgrade(sort_keys[bit_num as usize..last_bit_num as usize].to_owned()).await?;
 
         let (randoms_for_shuffle0, randoms_for_shuffle1, revealed) = (
             revealed_and_random_permutations

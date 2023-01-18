@@ -30,7 +30,6 @@ impl Substep for SortStep {}
 impl AsRef<str> for SortStep {
     fn as_ref(&self) -> &str {
         const MULTI_APPLY_INV: [&str; 64] = repeat64str!["multi_apply_inv"];
-        const MALICIOUS_UPGRADE_INPUT: [&str; 64] = repeat64str!["malicious_upgrade_input"];
         match self {
             Self::BitPermutationStep => "bit_permute",
             Self::ApplyInv => "apply_inv",
