@@ -293,6 +293,7 @@ impl<'a, F: Field> ContextInner<'a, F> {
 /// let _ = <UpgradeContext<Fp31, RecordId> as UpgradeToMalicious<Replicated<Fp31>, _>>::upgrade;
 /// let _ = <UpgradeContext<Fp31, NoRecord> as UpgradeToMalicious<(Replicated<Fp31>, Replicated<Fp31>), _>>::upgrade;
 /// let _ = <UpgradeContext<Fp31, NoRecord> as UpgradeToMalicious<Vec<Replicated<Fp31>>, _>>::upgrade;
+/// let _ = <UpgradeContext<Fp31, NoRecord> as UpgradeToMalicious<Vec<Vec<Replicated<Fp31>>>, _>>::upgrade;
 /// let _ = <UpgradeContext<Fp31, NoRecord> as UpgradeToMalicious<(Vec<Replicated<Fp31>>, Vec<Replicated<Fp31>>), _>>::upgrade;
 /// ```
 ///
@@ -434,6 +435,24 @@ where
                     ZeroPositions::Pvvv,
                 )
                 .await
+        }))
+        .await
+    }
+}
+
+#[async_trait]
+impl<'a, F> UpgradeToMalicious<Vec<Vec<Replicated<F>>>, Vec<Vec<MaliciousReplicated<F>>>>
+    for UpgradeContext<'a, F, NoRecord>
+where
+    F: Field,
+    for<'u> UpgradeContext<'u, F, NoRecord>: UpgradeToMalicious<Vec<Replicated<F>>, Vec<MaliciousReplicated<F>>>,
+{
+    async fn upgrade(
+        self,
+        input: Vec<Vec<Replicated<F>>>,
+    ) -> Result<Vec<Vec<MaliciousReplicated<F>>>, Error> {
+        try_join_all(input.into_iter().enumerate().map(|(i, bit_shares)| {
+            self.narrow(&BitOpStep::from(i)).upgrade(bit_shares)
         }))
         .await
     }
