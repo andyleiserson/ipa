@@ -31,10 +31,11 @@ where
     async fn map(self, m: M) -> Result<Self::Output, Error> {
         let m0 = m.narrow(&BitOpStep::from(0));
         let m1 = m.narrow(&BitOpStep::from(1));
-        Ok(join(
-            self.0.map(m0)?,
-            self.1.map(m1)?,
-        ).await)
+        let (first, second) = join(
+            self.0.map(m0),
+            self.1.map(m1),
+        ).await;
+        Ok((first?, second?))
     }
 }
 
@@ -44,7 +45,7 @@ where
     T: Map<M>,
 {
     type Output = Vec<<T as Map<M>>::Output>;
-    async fn map(self, m: M) -> Self::Output {
+    async fn map(self, m: M) -> Result<Self::Output, Error> {
         self.as_slice().map(m)
     }
 }

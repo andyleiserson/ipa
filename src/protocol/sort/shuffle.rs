@@ -1,7 +1,7 @@
 use std::iter::{repeat, zip};
 
 use embed_doc_image::embed_doc_image;
-use futures::future::join_all;
+use futures::future::try_join_all;
 use rand::seq::SliceRandom;
 use rand::Rng;
 
@@ -77,7 +77,7 @@ where
         .map(|(index, (ctx, input))| async move {
             input.clone().map(Reshare { ctx, record_id: RecordId::from(index), to_helper }).await
         });
-    Ok(join_all(reshares).await)
+    try_join_all(reshares).await
 }
 
 /// `shuffle_or_unshuffle_once` is called for the helpers

@@ -1,7 +1,7 @@
 use crate::bits::{Fp2Array, Serializable};
 use crate::error::Error;
 use crate::ff::Field;
-use crate::helpers::Role;
+use crate::helpers::{Role, Map, Mapping};
 use crate::protocol::context::Context;
 use crate::protocol::{RecordId, Substep};
 use crate::secret_sharing::replicated::malicious::{
@@ -116,8 +116,8 @@ where
 {
     type Output = MCAggregateCreditOutputRow<F, U, BK>;
 
-    async fn map(self, m: M) -> Self::Output {
-        Self::Output::new(self.breakdown_key.map(m).await, self.credit.map(m).await)
+    async fn map(self, m: M) -> Result<Self::Output, Error> {
+        Ok(Self::Output::new(self.breakdown_key.map(m).await?, self.credit.map(m).await?))
     }
 }
 
@@ -278,13 +278,13 @@ where
     U: Arithmetic<F>,
 {
     type Output = MCCappedCreditsWithAggregationBit<F, U>;
-    async fn map(self, m: M) -> Self::Output {
-        Self::Output::new(
-            self.helper_bit.map(m).await,
-            self.aggregation_bit.map(m).await,
-            self.breakdown_key.map(m).await,
-            self.credit.map(m).await,
-        )
+    async fn map(self, m: M) -> Result<Self::Output, Error> {
+        Ok(Self::Output::new(
+            self.helper_bit.map(m).await?,
+            self.aggregation_bit.map(m).await?,
+            self.breakdown_key.map(m).await?,
+            self.credit.map(m).await?,
+        ))
     }
 }
 

@@ -145,7 +145,7 @@ where
     V: SharedValue,
     C: Context<V>,
 {
-    async fn reshare(&self, ctx: C, record_id: RecordId, to_helper: Role) -> Result<Self, Error> {
+    async fn reshare(self, ctx: C, record_id: RecordId, to_helper: Role) -> Result<Self, Error> {
         self.map(Reshare { ctx, record_id, to_helper }).await
     }
 }

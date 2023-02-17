@@ -242,14 +242,6 @@ where
 }
 
 #[async_trait]
-impl<F: Field> Map<UncheckedDowngrade> for AdditiveShare<F> {
-    type Output = SemiHonestAdditiveShare<F>;
-    async fn map(self, _m: UncheckedDowngrade) -> Self::Output {
-        self.x
-    }
-}
-
-#[async_trait]
 impl<'a, F: Field> Downgrade for ShuffledPermutationWrapper<'a, F> {
     type Target = Vec<u32>;
     /// For ShuffledPermutationWrapper on downgrading, we return revealed permutation. This runs reveal on the malicious context
