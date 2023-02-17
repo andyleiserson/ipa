@@ -45,7 +45,7 @@ pub struct Reshare<C: Clone + Send> {
 /// Output: At the end of the protocol, all 3 helpers receive their shares of a new, random secret sharing of the secret value
 impl<'a, F: Field> Map<Reshare<SemiHonestContext<'a, F>>> for Replicated<F> {
     type Output = Replicated<F>;
-    async fn map(self, m: Reshare<SemiHonestContext<'a, F>>) -> Replicated<F> {
+    async fn map(self, m: Reshare<SemiHonestContext<'a, F>>) -> Result<Replicated<F>, Error> {
         let Reshare {
             ctx,
             record_id,
@@ -95,7 +95,7 @@ impl<'a, F: Field> Map<Reshare<SemiHonestContext<'a, F>>> for Replicated<F> {
 /// If either of reshares fails
 impl<'a, F: Field> Map<Reshare<MaliciousContext<'a, F>>> for MaliciousReplicated<F> {
     type Output = MaliciousReplicated<F>;
-    async fn map(self, m: Reshare<MaliciousContext<'a, F>>) -> MaliciousReplicated<F> {
+    async fn map(self, m: Reshare<MaliciousContext<'a, F>>) -> Result<MaliciousReplicated<F>, Error> {
         let Reshare {
             ctx,
             record_id,
@@ -135,7 +135,7 @@ impl<C: Clone + Send> Mapping for Reshare<C> {
 
 #[async_trait]
 pub trait Resharable<V, C>: Sized {
-    async fn reshare(&self, ctx: C, record_id: RecordId, to_helper: Role) -> Result<Self, Error>;
+    async fn reshare(self, ctx: C, record_id: RecordId, to_helper: Role) -> Result<Self, Error>;
 }
 
 #[async_trait]

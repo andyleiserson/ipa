@@ -37,7 +37,7 @@ use super::{
 /// 3. Secret shared value is shuffled using the same random permutations
 /// 4. The permutation is revealed
 /// 5. All helpers call `apply` to apply the permutation locally.
-pub async fn secureapplyinv<F: Field, S: SecretSharing<F> + Map<Reshare<C>, Output = S>, C: Context<F, Share = S>>(
+pub async fn secureapplyinv<F: Field, S: SecretSharing<F> + Resharable<F, C>, C: Context<F, Share = S>>(
     ctx: C,
     input: Vec<S>,
     random_permutations_for_shuffle: (&[u32], &[u32]),
