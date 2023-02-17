@@ -3,6 +3,7 @@ use crate::helpers::{Map, Mapping};
 use crate::protocol::context::{Context, MaliciousContext};
 use crate::protocol::prss::SharedRandomness;
 use crate::protocol::sort::ReshareStep::RandomnessForValidation;
+use crate::secret_sharing::SharedValue;
 use crate::secret_sharing::{
     replicated::malicious::AdditiveShare as MaliciousReplicated,
     replicated::semi_honest::AdditiveShare as Replicated,
@@ -30,7 +31,8 @@ use futures::future::try_join;
 ///    `to_helper.left`  = (part1 + part2, `rand_left`)  = (part1 + part2, r1)
 ///    `to_helper`       = (`rand_left`, `rand_right`)     = (r0, r1)
 ///    `to_helper.right` = (`rand_right`, part1 + part2) = (r0, part1 + part2)
-pub struct Reshare<C = ()> {
+#[derive(Clone)]
+pub struct Reshare<C: Clone + Send> {
     ctx: C,
     record_id: RecordId,
     to_helper: Role,
@@ -41,21 +43,21 @@ pub struct Reshare<C = ()> {
 /// This implements semi-honest reshare algorithm of "Efficient Secure Three-Party Sorting Protocol with an Honest Majority" at communication cost of 2R.
 /// Input: Pi-1 and Pi+1 know their secret shares
 /// Output: At the end of the protocol, all 3 helpers receive their shares of a new, random secret sharing of the secret value
-impl<F: Field> Map<Reshare<SemiHonestContext<'_, F>>> for Replicated<F> {
+impl<'a, F: Field> Map<Reshare<SemiHonestContext<'a, F>>> for Replicated<F> {
     type Output = Replicated<F>;
-    async fn map<'a>(self, m: &'a Reshare<SemiHonestContext<'a, F>>) -> Replicated<F> {
+    async fn map(self, m: Reshare<SemiHonestContext<'a, F>>) -> Replicated<F> {
         let Reshare {
             ctx,
             record_id,
             to_helper,
         } = m;
 
-        let channel = self.mesh();
-        let (r0, r1) = self.prss().generate_fields(record_id);
+        let channel = ctx.mesh();
+        let (r0, r1) = ctx.prss().generate_fields(record_id);
 
         // `to_helper.left` calculates part1 = (input.0 + input.1) - r1 and sends part1 to `to_helper.right`
         // This is same as (a1 + a2) - r2 in the diagram
-        if self.role() == to_helper.peer(Direction::Left) {
+        if ctx.role() == to_helper.peer(Direction::Left) {
             let part1 = self.left() + self.right() - r1;
             channel
                 .send(to_helper.peer(Direction::Right), record_id, part1)
@@ -67,7 +69,7 @@ impl<F: Field> Map<Reshare<SemiHonestContext<'_, F>>> for Replicated<F> {
                 .await?;
 
             Ok(Replicated::new(part1 + part2, r1))
-        } else if self.role() == to_helper.peer(Direction::Right) {
+        } else if ctx.role() == to_helper.peer(Direction::Right) {
             // `to_helper.right` calculates part2 = (self.left() - r0) and sends it to `to_helper.left`
             // This is same as (a3 - r3) in the diagram
             let part2 = self.left() - r0;
@@ -91,9 +93,9 @@ impl<F: Field> Map<Reshare<SemiHonestContext<'_, F>>> for Replicated<F> {
 /// For malicious reshare, we run semi honest reshare protocol twice, once for x and another for rx and return the results
 /// # Errors
 /// If either of reshares fails
-impl<F: Field> Map<Reshare<MaliciousContext<'_, F>>> for MaliciousReplicated<F> {
+impl<'a, F: Field> Map<Reshare<MaliciousContext<'a, F>>> for MaliciousReplicated<F> {
     type Output = MaliciousReplicated<F>;
-    async fn map<'a>(self, m: &'a Reshare<MaliciousContext<'a, F>>) -> MaliciousReplicated<F> {
+    async fn map(self, m: Reshare<MaliciousContext<'a, F>>) -> MaliciousReplicated<F> {
         let Reshare {
             ctx,
             record_id,
@@ -121,16 +123,32 @@ impl<F: Field> Map<Reshare<MaliciousContext<'_, F>>> for MaliciousReplicated<F> 
     }
 }
 
-impl<C> Mapping for Reshare<C> {}
-
-/*
-impl Map<Reshare> for AdditiveShare<F> {
-    type Output = SemiHonestAdditiveShare<F>;
-    fn map(self) -> Self::Output {
-        self.x
+impl<C: Clone + Send> Mapping for Reshare<C> {
+    fn narrow<S: crate::protocol::Substep + ?Sized>(&self, step: &S) -> Self {
+        Reshare {
+            ctx: self.ctx.narrow(step),
+            record_id: self.record_id,
+            to_helper: self.to_helper,
+        }
     }
 }
-*/
+
+#[async_trait]
+pub trait Resharable<V, C>: Sized {
+    async fn reshare(&self, ctx: C, record_id: RecordId, to_helper: Role) -> Result<Self, Error>;
+}
+
+#[async_trait]
+impl<T, V, C> Resharable<V, C> for T
+where
+    T: Map<Reshare<C>, Output = T>,
+    V: SharedValue,
+    C: Context<V>,
+{
+    async fn reshare(&self, ctx: C, record_id: RecordId, to_helper: Role) -> Result<Self, Error> {
+        self.map(Reshare { ctx, record_id, to_helper }).await
+    }
+}
 
 #[cfg(all(test, not(feature = "shuttle")))]
 mod tests {

@@ -104,7 +104,6 @@ mod tests {
     use crate::protocol::modulus_conversion::{
         combine_slices, convert_all_bits, convert_all_bits_local,
     };
-    use crate::protocol::sort::apply_sort::shuffle::Resharable;
     use crate::protocol::{context::Context, RecordId};
     use crate::protocol::{BreakdownKey, MatchKey};
     use crate::rand::thread_rng;

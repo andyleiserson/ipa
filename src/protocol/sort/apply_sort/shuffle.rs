@@ -1,6 +1,7 @@
 use crate::error::Error;
 use crate::ff::Field;
 use crate::helpers::{Direction, Role};
+use crate::protocol::basics::reshare::Resharable;
 use crate::protocol::sort::{
     apply::{apply, apply_inv},
     shuffle::{shuffle_for_helper, ShuffleOrUnshuffle},
@@ -8,20 +9,10 @@ use crate::protocol::sort::{
 };
 use crate::protocol::{context::Context, RecordId};
 use crate::repeat64str;
-use crate::secret_sharing::{Arithmetic, SecretSharing, SharedValue};
-use async_trait::async_trait;
+use crate::secret_sharing::SecretSharing;
 use embed_doc_image::embed_doc_image;
 use futures::future::try_join_all;
 use std::iter::{repeat, zip};
-
-#[async_trait]
-pub trait Resharable<V: SharedValue>: Sized {
-    type Share: SecretSharing<V>;
-
-    async fn reshare<C>(&self, ctx: C, record_id: RecordId, to_helper: Role) -> Result<Self, Error>
-    where
-        C: Context<V, Share = <Self as Resharable<V>>::Share> + Send;
-}
 
 pub struct InnerVectorElementStep(usize);
 
@@ -40,6 +31,7 @@ impl From<usize> for InnerVectorElementStep {
     }
 }
 
+/*
 #[async_trait]
 impl<T: Arithmetic<F>, F: Field> Resharable<F> for Vec<T> {
     type Share = T;
@@ -58,13 +50,14 @@ impl<T: Arithmetic<F>, F: Field> Resharable<F> for Vec<T> {
         .await
     }
 }
+*/
 
 async fn reshare<F, C, S, T>(input: &[T], ctx: C, to_helper: Role) -> Result<Vec<T>, Error>
 where
     C: Context<F, Share = S> + Send,
     F: Field,
     S: SecretSharing<F>,
-    T: Resharable<F, Share = S>,
+    T: Resharable<F, C>,
 {
     let ctx = ctx.set_total_records(input.len());
     let reshares = zip(repeat(ctx), input)
@@ -89,7 +82,7 @@ async fn shuffle_once<F, S, C, I>(
 where
     C: Context<F, Share = S> + Send,
     F: Field,
-    I: Resharable<F, Share = S>,
+    I: Resharable<F, C>,
     S: SecretSharing<F>,
 {
     let to_helper = shuffle_for_helper(which_step);
@@ -127,7 +120,7 @@ pub async fn shuffle_shares<C, F, I, S>(
 where
     C: Context<F, Share = S> + Send,
     F: Field,
-    I: Resharable<F, Share = S>,
+    I: Resharable<F, C>,
     S: SecretSharing<F>,
 {
     let input = shuffle_once(

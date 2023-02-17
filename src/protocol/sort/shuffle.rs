@@ -75,7 +75,7 @@ where
     let reshares = zip(repeat(ctx), input.iter())
         .enumerate()
         .map(|(index, (ctx, input))| async move {
-            input.clone().map(&Reshare { ctx, record_id: RecordId::from(index), to_helper }).await
+            input.clone().map(Reshare { ctx, record_id: RecordId::from(index), to_helper }).await
         });
     Ok(join_all(reshares).await)
 }

@@ -244,7 +244,7 @@ where
 #[async_trait]
 impl<F: Field> Map<UncheckedDowngrade> for AdditiveShare<F> {
     type Output = SemiHonestAdditiveShare<F>;
-    async fn map<'a>(self, _m: &'a UncheckedDowngrade) -> Self::Output {
+    async fn map(self, _m: UncheckedDowngrade) -> Self::Output {
         self.x
     }
 }

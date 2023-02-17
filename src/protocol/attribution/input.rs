@@ -3,7 +3,6 @@ use crate::error::Error;
 use crate::ff::Field;
 use crate::helpers::Role;
 use crate::protocol::context::Context;
-use crate::protocol::sort::apply_sort::shuffle::Resharable;
 use crate::protocol::{RecordId, Substep};
 use crate::secret_sharing::replicated::malicious::{
     AdditiveShare as MaliciousReplicated, DowngradeMalicious,
@@ -117,7 +116,7 @@ where
 {
     type Output = MCAggregateCreditOutputRow<F, U, BK>;
 
-    async fn map(self, m: &M) -> Self::Output {
+    async fn map(self, m: M) -> Self::Output {
         Self::Output::new(self.breakdown_key.map(m).await, self.credit.map(m).await)
     }
 }
@@ -227,6 +226,7 @@ where
     }
 }
 
+/*
 #[async_trait]
 impl<F: Field, T: Arithmetic<F>> Resharable<F> for MCAccumulateCreditInputRow<F, T> {
     type Share = T;
@@ -267,6 +267,7 @@ impl<F: Field, T: Arithmetic<F>> Resharable<F> for MCAccumulateCreditInputRow<F,
         })
     }
 }
+*/
 
 #[async_trait]
 impl<F, M, T, U> Map<M> for MCCappedCreditsWithAggregationBit<F, T>
@@ -277,16 +278,17 @@ where
     U: Arithmetic<F>,
 {
     type Output = MCCappedCreditsWithAggregationBit<F, U>;
-    async fn map(self, m: &M) -> Self::Output {
+    async fn map(self, m: M) -> Self::Output {
         Self::Output::new(
-            self.helper_bit.map(m),
-            self.aggregation_bit.map(m),
-            self.breakdown_key.map(m),
-            self.credit.map(m),
+            self.helper_bit.map(m).await,
+            self.aggregation_bit.map(m).await,
+            self.breakdown_key.map(m).await,
+            self.credit.map(m).await,
         )
     }
 }
 
+/*
 #[async_trait]
 impl<F: Field + Sized, T: Arithmetic<F>> Resharable<F> for MCCappedCreditsWithAggregationBit<F, T> {
     type Share = T;
@@ -330,6 +332,7 @@ impl<F: Field + Sized, T: Arithmetic<F>> Resharable<F> for MCCappedCreditsWithAg
         ))
     }
 }
+*/
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AttributionResharableStep {

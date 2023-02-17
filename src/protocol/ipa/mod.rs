@@ -15,7 +15,7 @@ use crate::{
         malicious::MaliciousValidator,
         modulus_conversion::{combine_slices, convert_all_bits, convert_all_bits_local},
         sort::{
-            apply_sort::{apply_sort_permutation, shuffle::Resharable},
+            apply_sort::apply_sort_permutation,
             generate_permutation::{
                 generate_permutation_and_reveal_shuffled,
                 malicious_generate_permutation_and_reveal_shuffled,
@@ -222,6 +222,7 @@ impl<F: Field, T: Arithmetic<F>> IPAModulusConvertedInputRow<F, T> {
     }
 }
 
+/*
 #[async_trait]
 impl<F: Field + Sized, T: Arithmetic<F>> Resharable<F> for IPAModulusConvertedInputRow<F, T> {
     type Share = T;
@@ -265,6 +266,7 @@ impl<F: Field + Sized, T: Arithmetic<F>> Resharable<F> for IPAModulusConvertedIn
         })
     }
 }
+*/
 
 /// # Errors
 /// Propagates errors from multiplications

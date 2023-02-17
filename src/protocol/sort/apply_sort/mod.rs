@@ -1,6 +1,6 @@
 pub mod shuffle;
 
-pub use shuffle::{shuffle_shares, Resharable};
+pub use shuffle::shuffle_shares;
 
 use crate::{
     error::Error,
@@ -10,7 +10,7 @@ use crate::{
         sort::{
             apply::apply_inv, generate_permutation::RevealedAndRandomPermutations,
             ApplyInvStep::ShuffleInputs,
-        },
+        }, basics::reshare::Resharable,
     },
     secret_sharing::SecretSharing,
 };
@@ -26,7 +26,7 @@ where
     C: Context<F, Share = S>,
     F: Field,
     S: SecretSharing<F>,
-    I: Resharable<F, Share = S> + Send + Sync,
+    I: Resharable<F, C> + Send + Sync,
 {
     let mut shuffled_objects = shuffle_shares(
         input,
