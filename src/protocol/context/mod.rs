@@ -1,5 +1,5 @@
 use crate::helpers::messaging::{Mesh, TotalRecords};
-use crate::helpers::Role;
+use crate::helpers::{Role, Map};
 use crate::protocol::basics::{Reveal, SecureMul};
 use crate::protocol::{Step, Substep};
 use crate::secret_sharing::{SecretSharing, SharedValue};
@@ -22,7 +22,6 @@ use super::boolean::RandomBits;
 pub trait Context<V: SharedValue>:
     SecureMul<V, Share = <Self as Context<V>>::Share>
     + SecureSop<V, Share = <Self as Context<V>>::Share>
-    + Reshare<<Self as Context<V>>::Share>
     + Reveal<V, Share = <Self as Context<V>>::Share>
     + RandomBits<V, Share = <Self as Context<V>>::Share>
     + Clone
@@ -30,7 +29,7 @@ pub trait Context<V: SharedValue>:
     + Sync
 {
     /// Secret sharing type this context supports.
-    type Share: SecretSharing<V>;
+    type Share: SecretSharing<V> + Map<Reshare<Self>>;
 
     /// The role of this context.
     fn role(&self) -> Role;

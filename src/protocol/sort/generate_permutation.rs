@@ -2,7 +2,7 @@ use crate::{
     error::Error,
     ff::Field,
     protocol::{
-        basics::reveal_permutation,
+        basics::{reveal_permutation, Reshare},
         context::{Context, MaliciousContext},
         malicious::MaliciousValidator,
         sort::SortStep::{
@@ -17,7 +17,7 @@ use crate::{
     secret_sharing::{
         replicated::malicious::AdditiveShare as MaliciousReplicated,
         replicated::semi_honest::AdditiveShare as Replicated, SecretSharing,
-    },
+    }, helpers::Map,
 };
 
 use super::{
@@ -50,7 +50,7 @@ pub struct ShuffledPermutationWrapper<'a, F: Field> {
 /// <https://eprint.iacr.org/2019/695.pdf>.
 pub(super) async fn shuffle_and_reveal_permutation<
     F: Field,
-    S: SecretSharing<F>,
+    S: SecretSharing<F> + Map<Reshare<C>, Output = S>,
     C: Context<F, Share = S>,
 >(
     ctx: C,
@@ -86,12 +86,16 @@ pub(super) async fn shuffle_and_reveal_permutation<
 /// 1. Get random permutation 2/3 shared across helpers
 /// 2. Shuffle shares three times
 /// 3. Validate the accumulated macs - this returns the revealed permutation
-pub(super) async fn malicious_shuffle_and_reveal_permutation<F: Field>(
+pub(super) async fn malicious_shuffle_and_reveal_permutation<F>(
     m_ctx: MaliciousContext<'_, F>,
     input_len: u32,
     input_permutation: Vec<MaliciousReplicated<F>>,
     malicious_validator: MaliciousValidator<'_, F>,
-) -> Result<RevealedAndRandomPermutations, Error> {
+) -> Result<RevealedAndRandomPermutations, Error>
+where
+    F: Field,
+    MaliciousReplicated<F>: for<'a> Map<Reshare<MaliciousContext<'a, F>>, Output = MaliciousReplicated<F>>,
+{
     let random_permutations_for_shuffle = get_two_of_three_random_permutations(
         input_len,
         m_ctx.narrow(&GeneratePermutation).prss_rng(),
@@ -230,10 +234,14 @@ pub async fn generate_permutation_and_reveal_shuffled<F: Field>(
 /// If unable to convert sort keys length to u32
 /// # Errors
 /// If unable to convert sort keys length to u32
-pub async fn malicious_generate_permutation_and_reveal_shuffled<F: Field>(
+pub async fn malicious_generate_permutation_and_reveal_shuffled<F>(
     sh_ctx: SemiHonestContext<'_, F>,
     sort_keys: &[Vec<Vec<Replicated<F>>>],
-) -> Result<RevealedAndRandomPermutations, Error> {
+) -> Result<RevealedAndRandomPermutations, Error>
+where
+    F: Field,
+    MaliciousReplicated<F>: for<'a> Map<Reshare<MaliciousContext<'a, F>>, Output = MaliciousReplicated<F>>,
+{
     let key_count = sort_keys[0].len();
     let (malicious_validator, sort_permutation) =
         malicious_generate_permutation_opt(sh_ctx.narrow(&SortKeys), sort_keys).await?;

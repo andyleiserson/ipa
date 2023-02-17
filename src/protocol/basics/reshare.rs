@@ -1,4 +1,5 @@
 use crate::ff::Field;
+use crate::helpers::{Map, Mapping};
 use crate::protocol::context::{Context, MaliciousContext};
 use crate::protocol::prss::SharedRandomness;
 use crate::protocol::sort::ReshareStep::RandomnessForValidation;
@@ -29,14 +30,10 @@ use futures::future::try_join;
 ///    `to_helper.left`  = (part1 + part2, `rand_left`)  = (part1 + part2, r1)
 ///    `to_helper`       = (`rand_left`, `rand_right`)     = (r0, r1)
 ///    `to_helper.right` = (`rand_right`, part1 + part2) = (r0, part1 + part2)
-#[async_trait]
-pub trait Reshare<T> {
-    async fn reshare(
-        self,
-        input: &T,
-        record: RecordId,
-        to_helper: Role,
-    ) -> Result<T, Error>;
+pub struct Reshare<C = ()> {
+    ctx: C,
+    record_id: RecordId,
+    to_helper: Role,
 }
 
 #[async_trait]
@@ -44,20 +41,22 @@ pub trait Reshare<T> {
 /// This implements semi-honest reshare algorithm of "Efficient Secure Three-Party Sorting Protocol with an Honest Majority" at communication cost of 2R.
 /// Input: Pi-1 and Pi+1 know their secret shares
 /// Output: At the end of the protocol, all 3 helpers receive their shares of a new, random secret sharing of the secret value
-impl<F: Field> Reshare<Replicated<F>> for SemiHonestContext<'_, F> {
-    async fn reshare(
-        self,
-        input: &Replicated<F>,
-        record_id: RecordId,
-        to_helper: Role,
-    ) -> Result<Replicated<F>, Error> {
+impl<F: Field> Map<Reshare<SemiHonestContext<'_, F>>> for Replicated<F> {
+    type Output = Replicated<F>;
+    async fn map(self, m: &Reshare<SemiHonestContext<'_, F>>) -> Replicated<F> {
+        let Reshare {
+            ctx,
+            record_id,
+            to_helper,
+        } = m;
+
         let channel = self.mesh();
         let (r0, r1) = self.prss().generate_fields(record_id);
 
         // `to_helper.left` calculates part1 = (input.0 + input.1) - r1 and sends part1 to `to_helper.right`
         // This is same as (a1 + a2) - r2 in the diagram
         if self.role() == to_helper.peer(Direction::Left) {
-            let part1 = input.left() + input.right() - r1;
+            let part1 = self.left() + self.right() - r1;
             channel
                 .send(to_helper.peer(Direction::Right), record_id, part1)
                 .await?;
@@ -69,9 +68,9 @@ impl<F: Field> Reshare<Replicated<F>> for SemiHonestContext<'_, F> {
 
             Ok(Replicated::new(part1 + part2, r1))
         } else if self.role() == to_helper.peer(Direction::Right) {
-            // `to_helper.right` calculates part2 = (input.left() - r0) and sends it to `to_helper.left`
+            // `to_helper.right` calculates part2 = (self.left() - r0) and sends it to `to_helper.left`
             // This is same as (a3 - r3) in the diagram
-            let part2 = input.left() - r0;
+            let part2 = self.left() - r0;
             channel
                 .send(to_helper.peer(Direction::Left), record_id, part2)
                 .await?;
@@ -92,23 +91,25 @@ impl<F: Field> Reshare<Replicated<F>> for SemiHonestContext<'_, F> {
 /// For malicious reshare, we run semi honest reshare protocol twice, once for x and another for rx and return the results
 /// # Errors
 /// If either of reshares fails
-impl<F: Field> Reshare<MaliciousReplicated<F>> for MaliciousContext<'_, F> {
-    async fn reshare(
-        self,
-        input: &MaliciousReplicated<F>,
-        record_id: RecordId,
-        to_helper: Role,
-    ) -> Result<MaliciousReplicated<F>, Error> {
+impl<F: Field> Map<Reshare<MaliciousContext<'_, F>>> for MaliciousReplicated<F> {
+    type Output = MaliciousReplicated<F>;
+    async fn map(self, m: &Reshare<MaliciousContext<'_, F>>) -> MaliciousReplicated<F> {
+        let Reshare {
+            ctx,
+            record_id,
+            to_helper,
+        } = m;
+
         use crate::protocol::context::SpecialAccessToMaliciousContext;
         use crate::secret_sharing::replicated::malicious::ThisCodeIsAuthorizedToDowngradeFromMalicious;
-        let random_constant_ctx = self.narrow(&RandomnessForValidation);
+        let random_constant_ctx = ctx.narrow(&RandomnessForValidation);
 
         let (rx, x) = try_join(
-            self.narrow(&ReshareRx)
+            ctx.narrow(&ReshareRx)
                 .semi_honest_context()
-                .reshare(input.rx(), record_id, to_helper),
-            self.semi_honest_context().reshare(
-                input.x().access_without_downgrade(),
+                .reshare(self.rx(), record_id, to_helper),
+            ctx.semi_honest_context().reshare(
+                self.x().access_without_downgrade(),
                 record_id,
                 to_helper,
             ),
@@ -119,6 +120,17 @@ impl<F: Field> Reshare<MaliciousReplicated<F>> for MaliciousContext<'_, F> {
         Ok(malicious_input)
     }
 }
+
+impl<C> Mapping for Reshare<C> {}
+
+/*
+impl Map<Reshare> for AdditiveShare<F> {
+    type Output = SemiHonestAdditiveShare<F>;
+    fn map(self) -> Self::Output {
+        self.x
+    }
+}
+*/
 
 #[cfg(all(test, not(feature = "shuttle")))]
 mod tests {
