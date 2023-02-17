@@ -1,5 +1,5 @@
 use crate::helpers::messaging::{Mesh, TotalRecords};
-use crate::helpers::{Role, Map};
+use crate::helpers::Role;
 use crate::protocol::basics::{Reveal, SecureMul};
 use crate::protocol::{Step, Substep};
 use crate::secret_sharing::{SecretSharing, SharedValue};
@@ -13,8 +13,8 @@ pub use malicious::{MaliciousContext, NoRecord, UpgradeContext, UpgradeToMalicio
 pub use prss::{InstrumentedIndexedSharedRandomness, InstrumentedSequentialSharedRandomness};
 pub use semi_honest::SemiHonestContext;
 
+use super::basics::reshare::Resharable;
 use super::basics::sum_of_product::SecureSop;
-use super::basics::Reshare;
 use super::boolean::RandomBits;
 
 /// Context used by each helper to perform secure computation. Provides access to shared randomness
@@ -29,7 +29,7 @@ pub trait Context<V: SharedValue>:
     + Sync
 {
     /// Secret sharing type this context supports.
-    type Share: SecretSharing<V> + Map<Reshare<Self>>;
+    type Share: SecretSharing<V> + Resharable<V, Self>;
 
     /// The role of this context.
     fn role(&self) -> Role;

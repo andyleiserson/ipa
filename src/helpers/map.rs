@@ -1,3 +1,4 @@
+use futures::future::try_join_all;
 use futures_util::future::join;
 
 use async_trait::async_trait;
@@ -46,7 +47,7 @@ where
 {
     type Output = Vec<<T as Map<M>>::Output>;
     async fn map(self, m: M) -> Result<Self::Output, Error> {
-        self.as_slice().map(m)
+        try_join_all(self.into_iter().map(|v| <T as Map<M>>::map(v, m))).await
     }
 }
 

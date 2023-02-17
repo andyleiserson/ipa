@@ -2,7 +2,7 @@ use crate::{
     error::Error,
     ff::Field,
     protocol::{
-        basics::{reveal_permutation, Reshare},
+        basics::{reveal_permutation, reshare::Resharable},
         context::{Context, MaliciousContext},
         malicious::MaliciousValidator,
         sort::SortStep::{
@@ -17,7 +17,7 @@ use crate::{
     secret_sharing::{
         replicated::malicious::AdditiveShare as MaliciousReplicated,
         replicated::semi_honest::AdditiveShare as Replicated, SecretSharing,
-    }, helpers::Map,
+    },
 };
 
 use super::{
@@ -50,7 +50,7 @@ pub struct ShuffledPermutationWrapper<'a, F: Field> {
 /// <https://eprint.iacr.org/2019/695.pdf>.
 pub(super) async fn shuffle_and_reveal_permutation<
     F: Field,
-    S: SecretSharing<F> + Map<Reshare<C>, Output = S>,
+    S: SecretSharing<F> + Resharable<F, C>,
     C: Context<F, Share = S>,
 >(
     ctx: C,
@@ -94,7 +94,7 @@ pub(super) async fn malicious_shuffle_and_reveal_permutation<F>(
 ) -> Result<RevealedAndRandomPermutations, Error>
 where
     F: Field,
-    MaliciousReplicated<F>: for<'a> Map<Reshare<MaliciousContext<'a, F>>, Output = MaliciousReplicated<F>>,
+    MaliciousReplicated<F>: for<'a> Resharable<F, MaliciousContext<'a, F>>,
 {
     let random_permutations_for_shuffle = get_two_of_three_random_permutations(
         input_len,
@@ -240,7 +240,7 @@ pub async fn malicious_generate_permutation_and_reveal_shuffled<F>(
 ) -> Result<RevealedAndRandomPermutations, Error>
 where
     F: Field,
-    MaliciousReplicated<F>: for<'a> Map<Reshare<MaliciousContext<'a, F>>, Output = MaliciousReplicated<F>>,
+    MaliciousReplicated<F>: for<'a> Resharable<F, MaliciousContext<'a, F>>,
 {
     let key_count = sort_keys[0].len();
     let (malicious_validator, sort_permutation) =

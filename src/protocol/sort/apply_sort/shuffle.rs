@@ -1,18 +1,16 @@
 use crate::error::Error;
 use crate::ff::Field;
-use crate::helpers::{Direction, Role};
+use crate::helpers::Direction;
 use crate::protocol::basics::reshare::Resharable;
 use crate::protocol::sort::{
     apply::{apply, apply_inv},
     shuffle::{shuffle_for_helper, ShuffleOrUnshuffle},
     ShuffleStep::{self, Step1, Step2, Step3},
 };
-use crate::protocol::{context::Context, RecordId};
+use crate::protocol::context::Context;
 use crate::repeat64str;
 use crate::secret_sharing::SecretSharing;
 use embed_doc_image::embed_doc_image;
-use futures::future::try_join_all;
-use std::iter::{repeat, zip};
 
 pub struct InnerVectorElementStep(usize);
 
@@ -82,7 +80,7 @@ async fn shuffle_once<F, S, C, I>(
 where
     C: Context<F, Share = S> + Send,
     F: Field,
-    I: Resharable<F, C>,
+    Vec<I>: Resharable<F, C>,
     S: SecretSharing<F>,
 {
     let to_helper = shuffle_for_helper(which_step);
@@ -100,7 +98,7 @@ where
             ShuffleOrUnshuffle::Unshuffle => apply(permutation_to_apply, &mut input),
         }
     }
-    input.reshare(ctx, to_helper).await
+    input.reshare(ctx, todo!(), to_helper).await
 }
 
 #[embed_doc_image("shuffle", "images/sort/shuffle.png")]
@@ -120,7 +118,7 @@ pub async fn shuffle_shares<C, F, I, S>(
 where
     C: Context<F, Share = S> + Send,
     F: Field,
-    I: Resharable<F, C>,
+    Vec<I>: Resharable<F, C>,
     S: SecretSharing<F>,
 {
     let input = shuffle_once(
