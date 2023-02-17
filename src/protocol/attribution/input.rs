@@ -1,9 +1,8 @@
 use crate::bits::{Fp2Array, Serializable};
 use crate::error::Error;
 use crate::ff::Field;
-use crate::helpers::{Role, Map, Mapping};
-use crate::protocol::context::Context;
-use crate::protocol::{RecordId, Substep};
+use crate::helpers::{Map, Mapping};
+use crate::protocol::Substep;
 use crate::secret_sharing::replicated::malicious::{
     AdditiveShare as MaliciousReplicated, DowngradeMalicious,
     ThisCodeIsAuthorizedToDowngradeFromMalicious, UnauthorizedDowngradeWrapper,
@@ -12,7 +11,6 @@ use crate::secret_sharing::replicated::semi_honest::AdditiveShare as Replicated;
 use crate::secret_sharing::replicated::semi_honest::{AdditiveShare, XorShare};
 use crate::secret_sharing::Arithmetic;
 use async_trait::async_trait;
-use futures::future::{try_join, try_join_all};
 use generic_array::GenericArray;
 use std::marker::PhantomData;
 use typenum::Unsigned;

@@ -2,7 +2,6 @@ use crate::{
     bits::{Fp2Array, Serializable},
     error::Error,
     ff::Field,
-    helpers::Role,
     protocol::{
         attribution::{
             accumulate_credit::accumulate_credit,
@@ -32,8 +31,7 @@ use crate::{
     },
 };
 
-use async_trait::async_trait;
-use futures::future::{try_join3, try_join_all};
+use futures::future::try_join_all;
 use generic_array::{ArrayLength, GenericArray};
 use std::ops::Add;
 use std::{

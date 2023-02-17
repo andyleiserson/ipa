@@ -107,11 +107,13 @@ impl<'a, F: Field> Map<Reshare<MaliciousContext<'a, F>>> for MaliciousReplicated
         let random_constant_ctx = ctx.narrow(&RandomnessForValidation);
 
         let (rx, x) = try_join(
-            ctx.narrow(&ReshareRx)
-                .semi_honest_context()
-                .reshare(self.rx(), record_id, to_helper),
-            ctx.semi_honest_context().reshare(
-                self.x().access_without_downgrade(),
+            self.rx().reshare(
+                ctx.narrow(&ReshareRx).semi_honest_context(),
+                record_id,
+                to_helper,
+            ),
+            self.x().access_without_downgrade().reshare(
+                ctx.semi_honest_context(),
                 record_id,
                 to_helper,
             ),
@@ -155,6 +157,7 @@ mod tests {
     mod semi_honest {
         use proptest::prelude::Rng;
 
+        use crate::protocol::basics::reshare::Resharable;
         use crate::rand::thread_rng;
 
         use crate::ff::Fp32BitPrime;
@@ -162,7 +165,7 @@ mod tests {
         use crate::protocol::prss::SharedRandomness;
         use crate::{
             helpers::Role,
-            protocol::{basics::Reshare, RecordId},
+            protocol::RecordId,
             test_fixture::{Reconstruct, Runner, TestWorld},
         };
 
@@ -183,7 +186,7 @@ mod tests {
                             // test follows the reshare protocol
                             ctx.prss().generate_fields(record_id).into()
                         } else {
-                            ctx.reshare(&share, record_id, target).await.unwrap()
+                            share.reshare(ctx, record_id, target).await.unwrap()
                         }
                     })
                     .await;
@@ -209,8 +212,7 @@ mod tests {
                 let secret = thread_rng().gen::<Fp32BitPrime>();
                 let new_shares = world
                     .semi_honest(secret, |ctx, share| async move {
-                        ctx.set_total_records(1)
-                            .reshare(&share, RecordId::from(0), role)
+                        share.reshare(ctx.set_total_records(1), RecordId::from(0), role)
                             .await
                             .unwrap()
                     })
@@ -227,7 +229,7 @@ mod tests {
         use crate::error::Error;
         use crate::ff::{Field, Fp32BitPrime};
         use crate::helpers::{Direction, Role};
-        use crate::protocol::basics::Reshare;
+        use crate::protocol::basics::reshare::Resharable;
         use crate::protocol::context::{Context, MaliciousContext, SemiHonestContext};
         use crate::protocol::malicious::MaliciousValidator;
         use crate::protocol::prss::SharedRandomness;
@@ -254,8 +256,7 @@ mod tests {
                 let secret = thread_rng().gen::<Fp32BitPrime>();
                 let new_shares = world
                     .malicious(secret, |ctx, share| async move {
-                        ctx.set_total_records(1)
-                            .reshare(&share, RecordId::from(0), role)
+                        share.reshare(ctx.set_total_records(1), RecordId::from(0), role)
                             .await
                             .unwrap()
                     })
@@ -370,7 +371,7 @@ mod tests {
                             .await
                             .unwrap()
                         } else {
-                            m_ctx.reshare(&m_a, record_id, to_helper).await.unwrap()
+                            m_a.reshare(m_ctx, record_id, to_helper).await.unwrap()
                         };
                         match v.validate(m_reshared_a).await {
                             Ok(result) => panic!("Got a result {result:?}"),

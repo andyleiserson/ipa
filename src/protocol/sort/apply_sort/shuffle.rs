@@ -50,7 +50,6 @@ impl<T: Arithmetic<F>, F: Field> Resharable<F> for Vec<T> {
         .await
     }
 }
-*/
 
 async fn reshare<F, C, S, T>(input: &[T], ctx: C, to_helper: Role) -> Result<Vec<T>, Error>
 where
@@ -67,6 +66,7 @@ where
         });
     try_join_all(reshares).await
 }
+*/
 
 /// `shuffle_once` is called for the helpers
 /// i)   2 helpers receive permutation pair and choose the permutation to be applied
@@ -100,7 +100,7 @@ where
             ShuffleOrUnshuffle::Unshuffle => apply(permutation_to_apply, &mut input),
         }
     }
-    reshare(&input, ctx, to_helper).await
+    input.reshare(ctx, to_helper).await
 }
 
 #[embed_doc_image("shuffle", "images/sort/shuffle.png")]
