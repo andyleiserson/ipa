@@ -106,6 +106,22 @@ where
     }
 }
 
+#[async_trait]
+impl<F, BK, M, T, U> Map<M> for MCAggregateCreditOutputRow<F, T, BK>
+where
+    F: Field,
+    BK: Fp2Array,
+    M: Mapping,
+    T: Map<M, Output = U>,
+    U: Arithmetic<F> + Serializable,
+{
+    type Output = MCAggregateCreditOutputRow<F, U, BK>;
+
+    async fn map(self, m: &M) -> Self::Output {
+        Self::Output::new(self.breakdown_key.map(m).await, self.credit.map(m).await)
+    }
+}
+
 //
 // `aggregate_credit` protocol
 //
@@ -249,6 +265,25 @@ impl<F: Field, T: Arithmetic<F>> Resharable<F> for MCAccumulateCreditInputRow<F,
             trigger_value: fields.remove(0),
             _marker: PhantomData,
         })
+    }
+}
+
+#[async_trait]
+impl<F, M, T, U> Map<M> for MCCappedCreditsWithAggregationBit<F, T>
+where
+    F: Field,
+    M: Mapping,
+    T: Map<M, Output = U>,
+    U: Arithmetic<F>,
+{
+    type Output = MCCappedCreditsWithAggregationBit<F, U>;
+    async fn map(self, m: &M) -> Self::Output {
+        Self::Output::new(
+            self.helper_bit.map(m),
+            self.aggregation_bit.map(m),
+            self.breakdown_key.map(m),
+            self.credit.map(m),
+        )
     }
 }
 

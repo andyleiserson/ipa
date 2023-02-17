@@ -4,10 +4,10 @@ use async_trait::async_trait;
 ///
 /// This is used to implement malicious downgrades.
 #[async_trait]
-pub trait Map<M: Mapping> {
+pub trait Map<M: Mapping>: Send {
     type Output;
 
-    async fn map(self, m: &M) -> Self::Output;
+    async fn map<'a>(self, m: &'a M) -> Self::Output;
 }
 
 pub trait Mapping {}
@@ -19,8 +19,8 @@ where
     U: Map<M>,
 {
     type Output = (<T as Map<M>>::Output, <U as Map<M>>::Output);
-    async fn map(self, m: &M) -> Self::Output {
-        (self.0.map(m), self.1.map(m))
+    async fn map<'a>(self, m: &'a M) -> Self::Output {
+        (self.0.map(m).await, self.1.map(m).await)
     }
 }
 
@@ -30,18 +30,20 @@ where
     T: Map<M>,
 {
     type Output = Vec<<T as Map<M>>::Output>;
-    async fn map(self, m: &M) -> Self::Output {
+    async fn map<'a>(self, m: &'a M) -> Self::Output {
         self.as_slice().map(m)
     }
 }
 
+/*
 #[async_trait]
 impl<T, M: Mapping> Map<M> for &[T]
 where
     T: Map<M>,
 {
     type Output = Vec<<T as Map<M>>::Output>;
-    async fn map(self, m: &M) -> Self::Output {
+    async fn map<'a>(self, m: &'a M) -> Self::Output {
         self.iter().map(|v| <T as Map<M>>::map(v, m)).collect()
     }
 }
+*/

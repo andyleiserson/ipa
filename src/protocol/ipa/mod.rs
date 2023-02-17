@@ -235,10 +235,10 @@ impl<F: Field + Sized, T: Arithmetic<F>> Resharable<F> for IPAModulusConvertedIn
             record_id,
             to_helper,
         );
-        let f_is_trigger_bit = ctx.narrow(&IPAInputRowResharableStep::TriggerBit).reshare(
-            &self.is_trigger_bit,
+        let f_is_trigger_bit = self.is_trigger_bit.reshare(
+            ctx.narrow(&IPAInputRowResharableStep::TriggerBit),
             record_id,
-            to_helper,
+            to_helper
         );
         let f_breakdown_key = self.breakdown_key.reshare(
             ctx.narrow(&IPAInputRowResharableStep::BreakdownKey),

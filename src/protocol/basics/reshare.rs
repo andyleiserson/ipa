@@ -43,7 +43,7 @@ pub struct Reshare<C = ()> {
 /// Output: At the end of the protocol, all 3 helpers receive their shares of a new, random secret sharing of the secret value
 impl<F: Field> Map<Reshare<SemiHonestContext<'_, F>>> for Replicated<F> {
     type Output = Replicated<F>;
-    async fn map(self, m: &Reshare<SemiHonestContext<'_, F>>) -> Replicated<F> {
+    async fn map<'a>(self, m: &'a Reshare<SemiHonestContext<'a, F>>) -> Replicated<F> {
         let Reshare {
             ctx,
             record_id,
@@ -93,7 +93,7 @@ impl<F: Field> Map<Reshare<SemiHonestContext<'_, F>>> for Replicated<F> {
 /// If either of reshares fails
 impl<F: Field> Map<Reshare<MaliciousContext<'_, F>>> for MaliciousReplicated<F> {
     type Output = MaliciousReplicated<F>;
-    async fn map(self, m: &Reshare<MaliciousContext<'_, F>>) -> MaliciousReplicated<F> {
+    async fn map<'a>(self, m: &'a Reshare<MaliciousContext<'a, F>>) -> MaliciousReplicated<F> {
         let Reshare {
             ctx,
             record_id,
