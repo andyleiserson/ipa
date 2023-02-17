@@ -4,7 +4,7 @@ use crate::protocol::prss::SharedRandomness;
 use crate::protocol::sort::ReshareStep::RandomnessForValidation;
 use crate::secret_sharing::{
     replicated::malicious::AdditiveShare as MaliciousReplicated,
-    replicated::semi_honest::AdditiveShare as Replicated, SecretSharing, SharedValue,
+    replicated::semi_honest::AdditiveShare as Replicated,
 };
 use crate::{
     error::Error,
@@ -30,15 +30,13 @@ use futures::future::try_join;
 ///    `to_helper`       = (`rand_left`, `rand_right`)     = (r0, r1)
 ///    `to_helper.right` = (`rand_right`, part1 + part2) = (r0, part1 + part2)
 #[async_trait]
-pub trait Reshare<V: SharedValue> {
-    type Share: SecretSharing<V>;
-
+pub trait Reshare<T> {
     async fn reshare(
         self,
-        input: &Self::Share,
+        input: &T,
         record: RecordId,
         to_helper: Role,
-    ) -> Result<Self::Share, Error>;
+    ) -> Result<T, Error>;
 }
 
 #[async_trait]
@@ -46,14 +44,13 @@ pub trait Reshare<V: SharedValue> {
 /// This implements semi-honest reshare algorithm of "Efficient Secure Three-Party Sorting Protocol with an Honest Majority" at communication cost of 2R.
 /// Input: Pi-1 and Pi+1 know their secret shares
 /// Output: At the end of the protocol, all 3 helpers receive their shares of a new, random secret sharing of the secret value
-impl<F: Field> Reshare<F> for SemiHonestContext<'_, F> {
-    type Share = Replicated<F>;
+impl<F: Field> Reshare<Replicated<F>> for SemiHonestContext<'_, F> {
     async fn reshare(
         self,
-        input: &Self::Share,
+        input: &Replicated<F>,
         record_id: RecordId,
         to_helper: Role,
-    ) -> Result<Self::Share, Error> {
+    ) -> Result<Replicated<F>, Error> {
         let channel = self.mesh();
         let (r0, r1) = self.prss().generate_fields(record_id);
 
@@ -95,14 +92,13 @@ impl<F: Field> Reshare<F> for SemiHonestContext<'_, F> {
 /// For malicious reshare, we run semi honest reshare protocol twice, once for x and another for rx and return the results
 /// # Errors
 /// If either of reshares fails
-impl<F: Field> Reshare<F> for MaliciousContext<'_, F> {
-    type Share = MaliciousReplicated<F>;
+impl<F: Field> Reshare<MaliciousReplicated<F>> for MaliciousContext<'_, F> {
     async fn reshare(
         self,
-        input: &Self::Share,
+        input: &MaliciousReplicated<F>,
         record_id: RecordId,
         to_helper: Role,
-    ) -> Result<Self::Share, Error> {
+    ) -> Result<MaliciousReplicated<F>, Error> {
         use crate::protocol::context::SpecialAccessToMaliciousContext;
         use crate::secret_sharing::replicated::malicious::ThisCodeIsAuthorizedToDowngradeFromMalicious;
         let random_constant_ctx = self.narrow(&RandomnessForValidation);
