@@ -277,13 +277,8 @@ pub(crate) mod tests {
 
         let TestServer { addr, .. } = TestServer::default().await;
 
-        let client_config = PeerConfig {
-            url: format!("https://localhost:{}", addr.port())
-                .parse()
-                .unwrap(),
-            certificate: None,
-        };
-        let client = MpcHelperClient::new(client_config);
+        let client_config = PeerConfig::new(format!("https://localhost:{port}").parse().unwrap());
+        let client = MpcHelperClient::new(client_config, None);
 
         // The server's self-signed test cert is not in the system truststore, and we didn't supply
         // it in the client config, so the connection should fail with a certificate error.

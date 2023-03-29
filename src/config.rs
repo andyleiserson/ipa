@@ -1,6 +1,7 @@
 use axum_server::tls_rustls::RustlsConfig;
 use hyper::{http::uri::Scheme, Uri};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use x25519_dalek::PublicKey;
 use std::{io, path::PathBuf};
 
 #[derive(Debug, thiserror::Error)]
@@ -96,6 +97,14 @@ pub struct PeerConfig {
     /// If a certificate is specified here, only the specified certificate will be accepted. The system
     /// truststore will not be used.
     pub certificate: Option<String>,
+
+    /// Public key used to encrypt IPA events destined for this helper
+    #[serde(
+        default,
+        serialize_with = "serialize_report_public_key",
+        deserialize_with = "deserialize_report_public_key",
+    )]
+    pub report_public_key: Option<PublicKey>,
 }
 
 impl PeerConfig {
@@ -103,6 +112,7 @@ impl PeerConfig {
         Self {
             url,
             certificate: None,
+            report_public_key: None,
         }
     }
 
@@ -117,24 +127,40 @@ impl PeerConfig {
         PeerConfig {
             url: format!("https://localhost:{port}").parse().unwrap(),
             certificate: Some(TEST_CERT.to_owned()),
+            report_public_key: None,
         }
     }
 }
 
-/*
- * TODO(tls): delete this if not needed when TLS and config work is finished
+fn serialize_report_public_key<S>(value: &Option<PublicKey>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match value {
+        Some(key) => {
+            serializer.serialize_some(&hex::encode(key.as_bytes()))
+        }
+        None => {
+            serializer.serialize_none()
 
-fn pk_from_str<'de, D>(deserializer: D) -> Result<PublicKey, D::Error>
+        }
+    }
+}
+
+fn deserialize_report_public_key<'de, D>(deserializer: D) -> Result<Option<PublicKey>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let s: String = Deserialize::deserialize(deserializer)?;
-    let mut buf = [0_u8; 32];
-    hex::decode_to_slice(s, &mut buf).map_err(<D::Error as serde::de::Error>::custom)?;
+    match <Option<String> as Deserialize>::deserialize(deserializer)? {
+        Some(s) => {
+            let mut buf = [0_u8; 32];
+            hex::decode_to_slice(s, &mut buf).map_err(<D::Error as serde::de::Error>::custom)?;
 
-    Ok(PublicKey::from(buf))
+            Ok(Some(PublicKey::from(buf)))
+        }
+        None => Ok(None)
+    }
 }
-*/
 
 #[derive(Clone, Debug)]
 pub enum TlsConfig {
