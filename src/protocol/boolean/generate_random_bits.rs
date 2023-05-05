@@ -4,7 +4,7 @@ use crate::{
     protocol::{
         basics::SecureMul,
         context::{
-            Context, UpgradableContext, UpgradedContext, UpgradedMaliciousContext,
+            Context, UpgradedContext, UpgradedMaliciousContext,
             UpgradedSemiHonestContext,
         },
         modulus_conversion::{convert_bit, convert_bit_local, BitConversionTriple},
@@ -93,10 +93,11 @@ impl AsRef<str> for Step {
     }
 }
 
+/*
 #[async_trait]
 impl<C, F> RandomBits<F> for C
 where
-    C: UpgradableContext,
+    C: UpgradableContext<F>,
     F: PrimeField + ExtendableField,
 {
     type Share = Replicated<F>;
@@ -108,6 +109,7 @@ where
         convert_triples_to_shares(self.narrow(&Step::ConvertShares), record_id, &triples).await
     }
 }
+*/
 
 #[async_trait]
 impl<F> RandomBits<F> for UpgradedSemiHonestContext<'_, F>

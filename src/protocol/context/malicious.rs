@@ -22,7 +22,7 @@ use crate::{
         ReplicatedSecretSharing,
     },
     seq_join::SeqJoin,
-    sync::Arc,
+    sync::Arc, ff::{PrimeField, Gf2},
 };
 use async_trait::async_trait;
 use std::{
@@ -110,12 +110,20 @@ impl<'a> super::Context for Context<'a> {
     }
 }
 
-impl<'a> UpgradableContext for Context<'a> {
-    type UpgradedContext<F: ExtendableField> = Upgraded<'a, F>;
-    type Validator<F: ExtendableField> = Validator<'a, F>;
+impl<'a, F: PrimeField> UpgradableContext<F> for Context<'a> {
+    type ArithmeticSharing = MaliciousReplicated<F>;
+    type BinarySharing = MaliciousReplicated<Gf2>;
+    type UpgradedArithmeticContext = Upgraded<'a, F>;
+    type UpgradedBinaryContext = Upgraded<'a, Gf2>;
+    type ArithmeticValidator = Validator<'a, F>;
+    type BinaryValidator = Validator<'a, Gf2>;
 
-    fn validator<F: ExtendableField>(self) -> Self::Validator<F> {
-        Validator::new(self)
+    fn arithmetic_validator(self) -> Self::ArithmeticValidator {
+        Self::ArithmeticValidator::new(self)
+    }
+
+    fn binary_validator(self) -> Self::BinaryValidator {
+        Self::BinaryValidator::new(self)
     }
 }
 

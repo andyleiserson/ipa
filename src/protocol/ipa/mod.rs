@@ -8,10 +8,9 @@ use crate::{
             secure_attribution,
         },
         basics::Reshare,
-        boolean::RandomBits,
         context::{
             upgrade::IPAModulusConvertedInputRowWrapper, Context, UpgradableContext,
-            UpgradedContext, Validator,
+            SemiHonestContext,
         },
         modulus_conversion::{convert_all_bits, convert_all_bits_local},
         sort::{
@@ -28,7 +27,7 @@ use crate::{
             semi_honest::AdditiveShare as Replicated,
             ReplicatedSecretSharing,
         },
-        Linear as LinearSecretSharing,
+        Linear as LinearSecretSharing, SharedValue,
     },
 };
 use async_trait::async_trait;
@@ -286,6 +285,46 @@ where
     }
 }
 
+pub trait Fields {
+    type F: PrimeField + ExtendableField + Serializable + SharedValue;
+    type C<'a>: UpgradableContext<
+        Self::F,
+        ArithmeticSharing = Self::S,
+        BinarySharing = Self::SB,
+    >;
+    type S: LinearSecretSharing<Self::F>
+        + for<'a> BasicProtocols<<<Self as Fields>::C<'a> as UpgradableContext<Self::F>>::UpgradedArithmeticContext, <Self as Fields>::F>
+        + Serializable
+        + DowngradeMalicious<Target = Replicated<Self::F>>
+        + 'static;
+    type SB: LinearSecretSharing<Gf2>
+        + for<'a> BasicProtocols<<<Self as Fields>::C<'a> as UpgradableContext<Self::F>>::UpgradedBinaryContext, Gf2>
+        + DowngradeMalicious<Target = Replicated<Gf2>>
+        + 'static;
+    type MCCappedCreditsWithAggregationBit: DowngradeMalicious<Target = MCCappedCreditsWithAggregationBit<Self::F, Replicated<Self::F>>>;
+}
+
+pub struct SemiHonestIpa<F: Field, MK: GaloisField, BK: GaloisField>(PhantomData<(F, MK, BK)>);
+
+impl<F, MK, BK> Fields for SemiHonestIpa<F, MK, BK>
+where
+    F: PrimeField + ExtendableField + Serializable,
+    Replicated<F>: Serializable,
+    MK: GaloisField,
+    BK: GaloisField,
+{
+    type F = F;
+    type C<'a> = SemiHonestContext<'a>;
+    type S = Replicated<F>;
+    type SB = Replicated<Gf2>;
+    type MCCappedCreditsWithAggregationBit = MCCappedCreditsWithAggregationBit<Self::F, Replicated<Self::F>>;
+}
+
+pub type ZF<Z> = <Z as Fields>::F;
+pub type ZC<'a, Z> = <Z as Fields>::C<'a>;
+pub type ZS<Z> = <Z as Fields>::S;
+pub type ZSB<Z> = <Z as Fields>::SB;
+
 /// Malicious IPA
 /// We return `Replicated<F>` as output since there is compute after this and in `aggregate_credit`, last communication operation was sort
 /// # Errors
@@ -293,35 +332,20 @@ where
 /// # Panics
 /// Propagates errors from multiplications
 #[allow(clippy::too_many_lines)]
-pub async fn ipa<'a, C, S, SB, F, MK, BK>(
-    sh_ctx: C,
-    input_rows: &[IPAInputRow<F, MK, BK>],
+pub async fn ipa<'a, MK, BK, Z>(
+    sh_ctx: ZC<'a, Z>,
+    input_rows: &[IPAInputRow<ZF<Z>, MK, BK>],
     config: IpaQueryConfig,
-) -> Result<Vec<MCAggregateCreditOutputRow<F, Replicated<F>, BK>>, Error>
+) -> Result<Vec<MCAggregateCreditOutputRow<ZF<Z>, Replicated<ZF<Z>>, BK>>, Error>
 where
-    C: UpgradableContext,
-    C::UpgradedContext<F>: UpgradedContext<F, Share = S> + RandomBits<F, Share = S>,
-    S: LinearSecretSharing<F>
-        + BasicProtocols<C::UpgradedContext<F>, F>
-        + Reshare<C::UpgradedContext<F>, RecordId>
-        + Serializable
-        + DowngradeMalicious<Target = Replicated<F>>
-        + 'static,
-    C::UpgradedContext<Gf2>: UpgradedContext<Gf2, Share = SB>,
-    SB: LinearSecretSharing<Gf2>
-        + BasicProtocols<C::UpgradedContext<Gf2>, Gf2>
-        + DowngradeMalicious<Target = Replicated<Gf2>>
-        + 'static,
-    F: PrimeField + ExtendableField,
+    Z: Fields,
     MK: GaloisField,
     BK: GaloisField,
-    ShuffledPermutationWrapper<S, C::UpgradedContext<F>>: DowngradeMalicious<Target = Vec<u32>>,
-    MCCappedCreditsWithAggregationBit<F, S>:
-        DowngradeMalicious<Target = MCCappedCreditsWithAggregationBit<F, Replicated<F>>>,
-    MCAggregateCreditOutputRow<F, S, BK>:
-        DowngradeMalicious<Target = MCAggregateCreditOutputRow<F, Replicated<F>, BK>>,
+    ShuffledPermutationWrapper<ZS<Z>, <ZC<'a, Z> as UpgradableContext<ZF<Z>>>::UpgradedArithmeticContext>: DowngradeMalicious<Target = Vec<u32>>,
+    MCAggregateCreditOutputRow<ZF<Z>, ZS<Z>, BK>:
+        DowngradeMalicious<Target = MCAggregateCreditOutputRow<ZF<Z>, Replicated<ZF<Z>>, BK>>,
 {
-    let validator = sh_ctx.clone().validator::<F>();
+    let validator = sh_ctx.clone().validator::<ZF<Z>>();
     let m_ctx = validator.context();
 
     let (mk_shares, bk_shares): (Vec<_>, Vec<_>) = input_rows
@@ -391,7 +415,7 @@ where
     let inputs_sans_match_keys = intermediate
         .into_iter()
         .zip(converted_bk_shares)
-        .map(|(one_row, bk_shares)| IPAModulusConvertedInputRow::<F, S> {
+        .map(|(one_row, bk_shares)| IPAModulusConvertedInputRow::<ZF<Z>, ZS<Z>> {
             timestamp: one_row.timestamp,
             is_trigger_bit: one_row.is_trigger_bit,
             trigger_value: one_row.trigger_value,
@@ -452,7 +476,7 @@ where
 
 #[cfg(all(test, not(feature = "shuttle"), feature = "in-memory-infra"))]
 pub mod tests {
-    use super::{ipa, IPAInputRow};
+    use super::{ipa, IPAInputRow, SemiHonestIpa};
     use crate::{
         ff::{Field, Fp31, Fp32BitPrime, GaloisField, Serializable},
         helpers::{query::IpaQueryConfig, GatewayConfig},
@@ -516,7 +540,7 @@ pub mod tests {
 
         let result: Vec<GenericReportTestInput<_, MatchKey, BreakdownKey>> = world
             .semi_honest(records, |ctx, input_rows| async move {
-                ipa::<_, _, _, Fp31, MatchKey, BreakdownKey>(
+                ipa::<MatchKey, BreakdownKey, SemiHonestIpa<_>>(
                     ctx,
                     &input_rows,
                     IpaQueryConfig::new(

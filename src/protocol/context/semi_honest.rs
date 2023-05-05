@@ -17,7 +17,7 @@ use crate::{
     secret_sharing::replicated::{
         malicious::ExtendableField, semi_honest::AdditiveShare as Replicated,
     },
-    seq_join::SeqJoin,
+    seq_join::SeqJoin, ff::{PrimeField, Gf2},
 };
 use std::{
     any::type_name,
@@ -92,12 +92,20 @@ impl<'a> super::Context for Context<'a> {
     }
 }
 
-impl<'a> UpgradableContext for Context<'a> {
-    type UpgradedContext<F: ExtendableField> = Upgraded<'a, F>;
-    type Validator<F: ExtendableField> = Validator<'a, F>;
+impl<'a, F: PrimeField> UpgradableContext<F> for Context<'a> {
+    type ArithmeticSharing = Replicated<F>;
+    type BinarySharing = Replicated<Gf2>;
+    type UpgradedArithmeticContext = Upgraded<'a, F>;
+    type UpgradedBinaryContext = Upgraded<'a, Gf2>;
+    type ArithmeticValidator = Validator<'a, F>;
+    type BinaryValidator = Validator<'a, Gf2>;
 
-    fn validator<F: ExtendableField>(self) -> Self::Validator<F> {
-        Self::Validator::new(self.inner)
+    fn arithmetic_validator(self) -> Self::ArithmeticValidator {
+        Self::ArithmeticValidator::new(self.inner)
+    }
+
+    fn binary_validator(self) -> Self::BinaryValidator {
+        Self::BinaryValidator::new(self.inner)
     }
 }
 

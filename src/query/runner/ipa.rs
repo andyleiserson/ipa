@@ -5,7 +5,7 @@ use crate::{
     protocol::{
         attribution::input::MCAggregateCreditOutputRow,
         context::SemiHonestContext,
-        ipa::{ipa, IPAInputRow},
+        ipa::{ipa, IPAInputRow, SemiHonestIpa},
         BreakdownKey, MatchKey,
     },
     query::ProtocolResult,
@@ -62,7 +62,7 @@ impl Runner {
                 input_vec.extend(IPAInputRow::<F, MK, BK>::from_byte_slice(&data.unwrap()));
             }
 
-            ipa(ctx, input_vec.as_slice(), config).await
+            ipa::<MK, BK, SemiHonestIpa<F, MK, BK>>(ctx, input_vec.as_slice(), config).await
         }
     }
 }

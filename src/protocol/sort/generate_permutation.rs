@@ -23,7 +23,7 @@ use crate::{
             semi_honest::AdditiveShare as Replicated,
         },
         Linear as LinearSecretSharing, SecretSharing,
-    },
+    }, ff::PrimeField,
 };
 use async_trait::async_trait;
 
@@ -51,16 +51,16 @@ pub struct ShuffledPermutationWrapper<T, C: Context> {
 /// 2. Shuffle shares three times
 /// 3. Validate the accumulated macs - this returns the revealed permutation
 pub(super) async fn shuffle_and_reveal_permutation<C, S, F>(
-    m_ctx: C::UpgradedContext<F>,
+    m_ctx: C::UpgradedArithmeticContext,
     input_permutation: Vec<S>,
-    malicious_validator: C::Validator<F>,
+    malicious_validator: C::ArithmeticValidator,
 ) -> Result<RevealedAndRandomPermutations, Error>
 where
-    C: UpgradableContext,
-    C::UpgradedContext<F>: UpgradedContext<F, Share = S>,
-    F: ExtendableField,
-    S: SecretSharing<F> + BasicProtocols<C::UpgradedContext<F>, F>,
-    ShuffledPermutationWrapper<S, C::UpgradedContext<F>>: DowngradeMalicious<Target = Vec<u32>>,
+    C: UpgradableContext<F>,
+    C::UpgradedArithmeticContext: UpgradedContext<F, Share = S>,
+    F: PrimeField + ExtendableField,
+    S: SecretSharing<F> + BasicProtocols<C::UpgradedArithmeticContext, F>,
+    ShuffledPermutationWrapper<S, C::UpgradedArithmeticContext>: DowngradeMalicious<Target = Vec<u32>>,
 {
     let random_permutations_for_shuffle = get_two_of_three_random_permutations(
         input_permutation.len().try_into().unwrap(),
@@ -102,11 +102,11 @@ pub async fn generate_permutation_and_reveal_shuffled<C, S, F>(
     sort_keys: impl Iterator<Item = &Vec<Vec<Replicated<F>>>>,
 ) -> Result<RevealedAndRandomPermutations, Error>
 where
-    C: UpgradableContext,
-    C::UpgradedContext<F>: UpgradedContext<F, Share = S>,
-    S: LinearSecretSharing<F> + BasicProtocols<C::UpgradedContext<F>, F> + 'static,
-    F: ExtendableField,
-    ShuffledPermutationWrapper<S, C::UpgradedContext<F>>: DowngradeMalicious<Target = Vec<u32>>,
+    C: UpgradableContext<F>,
+    C::UpgradedArithmeticContext: UpgradedContext<F, Share = S>,
+    S: LinearSecretSharing<F> + BasicProtocols<C::UpgradedArithmeticContext, F> + 'static,
+    F: PrimeField + ExtendableField,
+    ShuffledPermutationWrapper<S, C::UpgradedArithmeticContext>: DowngradeMalicious<Target = Vec<u32>>,
 {
     let (validator, sort_permutation) =
         generate_permutation_opt(sh_ctx.narrow(&SortKeys), sort_keys).await?;

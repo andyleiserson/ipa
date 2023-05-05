@@ -7,12 +7,12 @@ pub mod validator;
 use crate::{
     error::Error,
     helpers::{ChannelId, Gateway, Message, ReceivingEnd, Role, SendingEnd, TotalRecords},
-    protocol::{basics::ZeroPositions, prss::Endpoint as PrssEndpoint, step, NoRecord, RecordId},
+    protocol::{basics::ZeroPositions, prss::Endpoint as PrssEndpoint, step, NoRecord, RecordId, boolean::RandomBits},
     secret_sharing::{
         replicated::{malicious::ExtendableField, semi_honest::AdditiveShare as Replicated},
         SecretSharing,
     },
-    seq_join::SeqJoin,
+    seq_join::SeqJoin, ff::{PrimeField, Gf2},
 };
 use async_trait::async_trait;
 use prss::{InstrumentedIndexedSharedRandomness, InstrumentedSequentialSharedRandomness};
@@ -76,11 +76,16 @@ pub trait Context: Clone + Send + Sync + SeqJoin {
     fn recv_channel<M: Message>(&self, role: Role) -> ReceivingEnd<M>;
 }
 
-pub trait UpgradableContext: Context {
-    type UpgradedContext<F: ExtendableField>: UpgradedContext<F>;
-    type Validator<F: ExtendableField>: Validator<Self, F>;
+pub trait UpgradableContext<F: PrimeField>: Context {
+    type ArithmeticSharing;
+    type BinarySharing;
+    type UpgradedArithmeticContext: UpgradedContext<F, Share = Self::ArithmeticSharing> + RandomBits<F, Share = Self::ArithmeticSharing>;
+    type UpgradedBinaryContext: UpgradedContext<Gf2, Share = Self::BinarySharing>;
+    type ArithmeticValidator: Validator<Self::UpgradedArithmeticContext>;
+    type BinaryValidator: Validator<Self::UpgradedBinaryContext>;
 
-    fn validator<F: ExtendableField>(self) -> Self::Validator<F>;
+    fn arithmetic_validator(self) -> Self::ArithmeticValidator;
+    fn binary_validator(self) -> Self::BinaryValidator;
 }
 
 /// Upgrades all use this step to distinguish protocol steps from the step that is used to upgrade inputs.

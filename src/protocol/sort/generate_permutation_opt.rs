@@ -18,7 +18,7 @@ use crate::{
             semi_honest::AdditiveShare as Replicated,
         },
         Linear as LinearSecretSharing,
-    },
+    }, ff::PrimeField,
 };
 use embed_doc_image::embed_doc_image;
 
@@ -78,16 +78,16 @@ use embed_doc_image::embed_doc_image;
 pub async fn generate_permutation_opt<'a, C, F, S, I>(
     sh_ctx: C,
     sort_keys: I,
-) -> Result<(C::Validator<F>, Vec<S>), Error>
+) -> Result<(C::ArithmeticValidator, Vec<S>), Error>
 where
-    C: UpgradableContext,
-    C::UpgradedContext<F>: UpgradedContext<F, Share = S>,
-    S: LinearSecretSharing<F> + BasicProtocols<C::UpgradedContext<F>, F> + 'static,
-    F: ExtendableField,
+    C: UpgradableContext<F>,
+    C::UpgradedArithmeticContext: UpgradedContext<F, Share = S>,
+    S: LinearSecretSharing<F> + BasicProtocols<C::UpgradedArithmeticContext, F> + 'static,
+    F: PrimeField + ExtendableField,
     I: IntoIterator<Item = &'a Vec<Vec<Replicated<F>>>>,
-    ShuffledPermutationWrapper<S, C::UpgradedContext<F>>: DowngradeMalicious<Target = Vec<u32>>,
+    ShuffledPermutationWrapper<S, C::UpgradedArithmeticContext>: DowngradeMalicious<Target = Vec<u32>>,
 {
-    let mut malicious_validator = sh_ctx.clone().validator();
+    let mut malicious_validator = sh_ctx.clone().arithmetic_validator();
     let mut m_ctx_bit = malicious_validator.context();
     let mut sort_keys = sort_keys.into_iter();
 
@@ -106,7 +106,7 @@ where
         )
         .await?;
 
-        malicious_validator = sh_ctx.narrow(&Sort(chunk_num)).validator();
+        malicious_validator = sh_ctx.narrow(&Sort(chunk_num)).arithmetic_validator();
         m_ctx_bit = malicious_validator.context();
 
         // TODO (richaj) it might even be more efficient to apply sort permutation to XorReplicated sharings,

@@ -1,6 +1,6 @@
 use crate::{
     error::Error,
-    ff::{Field, GaloisField, Serializable},
+    ff::{Field, GaloisField, Serializable, PrimeField},
     protocol::{
         attribution::{
             do_the_binary_tree_thing,
@@ -22,7 +22,7 @@ use crate::{
             },
         },
         step::BitOpStep,
-        BasicProtocols, RecordId,
+        BasicProtocols, RecordId, ipa::{Fields, ZC, ZS, ZF},
     },
     secret_sharing::{
         replicated::{
@@ -44,24 +44,19 @@ const SIMPLE_AGGREGATION_BREAK_EVEN_POINT: u32 = 32;
 ///
 /// # Errors
 /// propagates errors from multiplications
-pub async fn aggregate_credit<C, V, F, BK, I, S>(
-    validator: V,
-    sh_ctx: C,
+pub async fn aggregate_credit<'a, F, BK, I, Z>(
+    validator: <ZC<'a, Z> as UpgradableContext<F>>::ArithmeticValidator,
+    sh_ctx: <Z as Fields>::C<'a>,
     capped_credits: I,
     max_breakdown_key: u32,
     num_multi_bits: u32,
-) -> Result<(V, Vec<MCAggregateCreditOutputRow<F, S, BK>>), Error>
+) -> Result<(<ZC<'a, Z> as UpgradableContext<F>>::ArithmeticValidator, Vec<MCAggregateCreditOutputRow<F, ZS<Z>, BK>>), Error>
 where
-    C: UpgradableContext<Validator<F> = V>,
-    C::UpgradedContext<F>: UpgradedContext<F, Share = S>,
-    V: Validator<C, F>,
-    F: ExtendableField,
+    Z: Fields<F = F>,
+    F: PrimeField + ExtendableField,
     BK: GaloisField,
-    I: Iterator<Item = MCAggregateCreditInputRow<F, S>>,
-    S: LinearSecretSharing<F> + BasicProtocols<C::UpgradedContext<F>, F> + Serializable + 'static,
-    MCCappedCreditsWithAggregationBit<F, S>:
-        DowngradeMalicious<Target = MCCappedCreditsWithAggregationBit<F, Replicated<F>>>,
-    ShuffledPermutationWrapper<S, C::UpgradedContext<F>>: DowngradeMalicious<Target = Vec<u32>>,
+    I: Iterator<Item = MCAggregateCreditInputRow<F, ZS<Z>>>,
+    ShuffledPermutationWrapper<ZS<Z>, <ZC<'a, Z> as UpgradableContext<F>>::UpgradedArithmeticContext>: DowngradeMalicious<Target = Vec<u32>>,
 {
     let m_ctx = validator.context();
 
@@ -70,7 +65,7 @@ where
         return Ok((validator, res));
     }
 
-    let capped_credits_with_aggregation_bits = add_aggregation_bits_and_breakdown_keys::<_, _, _, BK>(
+    let capped_credits_with_aggregation_bits = add_aggregation_bits_and_breakdown_keys::<_, _, _, BK, Z>(
         &m_ctx,
         capped_credits,
         max_breakdown_key,
@@ -117,7 +112,7 @@ where
         .iter()
         .enumerate()
         .map(|(i, x)| {
-            MCCappedCreditsWithAggregationBit::new(
+            Z::MCCappedCreditsWithAggregationBit::new(
                 x.helper_bit.clone(),
                 x.aggregation_bit.clone(),
                 x.breakdown_key.clone(),
@@ -232,12 +227,13 @@ where
         .collect())
 }
 
-fn add_aggregation_bits_and_breakdown_keys<F, C, T, BK>(
+fn add_aggregation_bits_and_breakdown_keys<F, C, T, BK, Z>(
     ctx: &C,
     capped_credits: impl Iterator<Item = MCAggregateCreditInputRow<F, T>>,
     max_breakdown_key: u32,
-) -> Vec<MCCappedCreditsWithAggregationBit<F, T>>
+) -> Vec<<Z as Fields>::MCCappedCreditsWithAggregationBit>
 where
+    Z: Fields,
     F: Field,
     C: Context,
     T: LinearSecretSharing<F> + BasicProtocols<C, F>,
@@ -286,29 +282,26 @@ where
     unique_breakdown_keys
 }
 
-async fn sort_by_breakdown_key<C, S, F>(
-    ctx: C,
-    input: Vec<MCCappedCreditsWithAggregationBit<F, Replicated<F>>>,
+async fn sort_by_breakdown_key<Z>(
+    ctx: ZC<'_, Z>,
+    input: Vec<MCCappedCreditsWithAggregationBit<ZF<Z>, Replicated<ZF<Z>>>>,
     max_breakdown_key: u32,
     num_multi_bits: u32,
 ) -> Result<
     (
-        C::Validator<F>,
-        Vec<MCCappedCreditsWithAggregationBit<F, S>>,
+        <ZC<Z> as UpgradableContext<ZF<Z>>>::ArithmeticValidator,
+        Vec<MCCappedCreditsWithAggregationBit<ZF<Z>, ZS<Z>>>,
     ),
     Error,
 >
 where
-    C: UpgradableContext,
-    C::UpgradedContext<F>: UpgradedContext<F, Share = S>,
-    S: LinearSecretSharing<F> + BasicProtocols<C::UpgradedContext<F>, F> + Serializable + 'static,
-    F: ExtendableField,
-    for<'a> UpgradeContext<'a, C::UpgradedContext<F>, F>: UpgradeToMalicious<
+    Z: Fields,
+    for<'a> UpgradeContext<'a, <ZC<'a, Z> as UpgradableContext<ZF<Z>>>::UpgradedArithmeticContext, ZF<Z>>: UpgradeToMalicious<
         'a,
-        Vec<MCCappedCreditsWithAggregationBit<F, Replicated<F>>>,
-        Vec<MCCappedCreditsWithAggregationBit<F, S>>,
+        Vec<MCCappedCreditsWithAggregationBit<ZF<Z>, Replicated<ZF<Z>>>>,
+        Vec<MCCappedCreditsWithAggregationBit<ZF<Z>, ZS<Z>>>,
     >,
-    ShuffledPermutationWrapper<S, C::UpgradedContext<F>>: DowngradeMalicious<Target = Vec<u32>>,
+    for<'a> ShuffledPermutationWrapper<ZS<Z>, <ZC<'a, Z> as UpgradableContext<ZF<Z>>>::UpgradedArithmeticContext>: DowngradeMalicious<Target = Vec<u32>>,
 {
     let breakdown_keys = input
         .iter()
@@ -322,13 +315,13 @@ where
     let breakdown_keys =
         split_into_multi_bit_slices(&breakdown_keys, valid_bits_count, num_multi_bits);
 
-    let sort_permutation = generate_permutation_and_reveal_shuffled(
+    let sort_permutation = generate_permutation_and_reveal_shuffled::<_, ZS<Z>, _>(
         ctx.narrow(&Step::GeneratePermutationByBreakdownKey),
         breakdown_keys.iter(),
     )
     .await?;
 
-    let malicious_validator = ctx.validator();
+    let malicious_validator = ctx.arithmetic_validator();
     let m_ctx = malicious_validator.context();
     let input = m_ctx.upgrade(input).await?;
     Ok((
@@ -342,22 +335,21 @@ where
     ))
 }
 
-async fn sort_by_aggregation_bit<C, S, F>(
-    ctx: C,
+async fn sort_by_aggregation_bit<S, F, Z>(
+    ctx: ZC<'_, Z>,
     input: Vec<MCCappedCreditsWithAggregationBit<F, Replicated<F>>>,
 ) -> Result<
     (
-        C::Validator<F>,
+        <ZC<Z> as UpgradableContext<F>>::ArithmeticValidator,
         Vec<MCCappedCreditsWithAggregationBit<F, S>>,
     ),
     Error,
 >
 where
-    C: UpgradableContext,
-    C::UpgradedContext<F>: UpgradedContext<F, Share = S>,
-    S: LinearSecretSharing<F> + BasicProtocols<C::UpgradedContext<F>, F> + 'static,
-    F: ExtendableField,
-    ShuffledPermutationWrapper<S, C::UpgradedContext<F>>: DowngradeMalicious<Target = Vec<u32>>,
+    Z: Fields<F = F, S = S>,
+    for<'a> S: LinearSecretSharing<F> + BasicProtocols<<ZC<'a, Z> as UpgradableContext<F>>::UpgradedArithmeticContext, F> + 'static,
+    F: PrimeField + ExtendableField,
+    for<'a> ShuffledPermutationWrapper<S, <ZC<'a, Z> as UpgradableContext<F>>::UpgradedArithmeticContext>: DowngradeMalicious<Target = Vec<u32>>,
 {
     // Since aggregation_bit is a 1-bit share of 1 or 0, we'll just extract the
     // field and wrap it in another vector.
@@ -372,7 +364,7 @@ where
     )
     .await?;
 
-    let validator = ctx.validator();
+    let validator = ctx.arithmetic_validator();
     let m_ctx = validator.context();
     let input = m_ctx.upgrade(input).await?;
 
@@ -425,7 +417,7 @@ mod tests {
         ff::{Field, Fp32BitPrime, GaloisField},
         protocol::{
             attribution::input::{AggregateCreditInputRow, MCAggregateCreditInputRow},
-            context::{Context, UpgradableContext},
+            context::Context,
             modulus_conversion::{convert_all_bits, convert_all_bits_local},
             BreakdownKey, MatchKey,
         },

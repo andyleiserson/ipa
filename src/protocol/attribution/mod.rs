@@ -11,18 +11,17 @@ use self::{
     credit_capping::credit_capping,
     input::{
         MCAggregateCreditOutputRow, MCApplyAttributionWindowInputRow,
-        MCCappedCreditsWithAggregationBit,
     },
 };
 use crate::{
     error::Error,
-    ff::{Field, GaloisField, Gf2, PrimeField, Serializable},
+    ff::{Field, GaloisField, Gf2, PrimeField},
     helpers::query::IpaQueryConfig,
     protocol::{
         basics::SecureMul,
-        boolean::{bitwise_equal::bitwise_equal_gf2, or::or, RandomBits},
+        boolean::{bitwise_equal::bitwise_equal_gf2, or::or},
         context::{Context, UpgradableContext, UpgradedContext, Validator},
-        ipa::IPAModulusConvertedInputRow,
+        ipa::{IPAModulusConvertedInputRow, Fields, ZSB, ZC, ZS, ZF},
         modulus_conversion::{convert_bit, convert_bit_local, BitConversionTriple},
         sort::generate_permutation::ShuffledPermutationWrapper,
         step, BasicProtocols, RecordId,
@@ -33,7 +32,7 @@ use crate::{
             malicious::{DowngradeMalicious, ExtendableField},
             semi_honest::{AdditiveShare as Replicated, AdditiveShare as SemiHonestAdditiveShare},
         },
-        Linear as LinearSecretSharing,
+        Linear as LinearSecretSharing, SecretSharing,
     },
     seq_join::assert_send,
 };
@@ -44,28 +43,21 @@ use std::iter::{empty, once, zip};
 ///
 /// # Errors
 /// propagates errors from multiplications
-pub async fn secure_attribution<C, S, SB, F, BK>(
-    sh_ctx: C,
-    validator: C::Validator<F>,
-    binary_validator: C::Validator<Gf2>,
-    sorted_match_keys: Vec<Vec<SB>>,
-    sorted_rows: Vec<IPAModulusConvertedInputRow<F, S>>,
+pub async fn secure_attribution<'a, F, BK, Z>(
+    sh_ctx: ZC<'a, Z>,
+    validator: <ZC<'a, Z> as UpgradableContext<F>>::ArithmeticValidator,
+    binary_validator: <ZC<'a, Z> as UpgradableContext<F>>::BinaryValidator,
+    sorted_match_keys: Vec<Vec<ZSB<Z>>>,
+    sorted_rows: Vec<IPAModulusConvertedInputRow<F, ZS<Z>>>,
     config: IpaQueryConfig,
 ) -> Result<Vec<MCAggregateCreditOutputRow<F, SemiHonestAdditiveShare<F>, BK>>, Error>
 where
-    C: UpgradableContext,
-    C::UpgradedContext<F>: UpgradedContext<F, Share = S> + RandomBits<F, Share = S>,
-    S: LinearSecretSharing<F> + BasicProtocols<C::UpgradedContext<F>, F> + Serializable + 'static,
-    C::UpgradedContext<Gf2>: UpgradedContext<Gf2, Share = SB> + Context,
-    SB: LinearSecretSharing<Gf2> + BasicProtocols<C::UpgradedContext<Gf2>, Gf2> + 'static,
-    Vec<SB>: DowngradeMalicious<Target = Vec<SemiHonestAdditiveShare<Gf2>>>,
+    Z: Fields<F = F>,
+    Vec<ZSB<Z>>: DowngradeMalicious<Target = Vec<SemiHonestAdditiveShare<Gf2>>>,
     F: PrimeField + ExtendableField,
     BK: GaloisField,
-    ShuffledPermutationWrapper<S, C::UpgradedContext<F>>: DowngradeMalicious<Target = Vec<u32>>,
-    MCCappedCreditsWithAggregationBit<F, S>: DowngradeMalicious<
-        Target = MCCappedCreditsWithAggregationBit<F, SemiHonestAdditiveShare<F>>,
-    >,
-    MCAggregateCreditOutputRow<F, S, BK>:
+    ShuffledPermutationWrapper<ZS<Z>, <ZC<'a, Z> as UpgradableContext<F>>::UpgradedArithmeticContext>: DowngradeMalicious<Target = Vec<u32>>,
+    MCAggregateCreditOutputRow<F, ZS<Z>, BK>:
         DowngradeMalicious<Target = MCAggregateCreditOutputRow<F, SemiHonestAdditiveShare<F>, BK>>,
 {
     let m_ctx = validator.context();
@@ -75,7 +67,7 @@ where
     let validated_helper_bits_gf2 = binary_validator.validate(helper_bits_gf2).await?;
     let semi_honest_fp_helper_bits =
         mod_conv_helper_bits(sh_ctx.clone(), &validated_helper_bits_gf2).await?;
-    let helper_bits = once(S::ZERO)
+    let helper_bits = once(<ZS<Z> as SecretSharing<ZF<Z>>>::ZERO)
         .chain(m_ctx.upgrade(semi_honest_fp_helper_bits).await?)
         .collect::<Vec<_>>();
 
@@ -123,7 +115,7 @@ where
     )
     .await?;
 
-    let (validator, output) = aggregate_credit(
+    let (validator, output) = aggregate_credit::<F, BK, _, Z>(
         validator,
         sh_ctx,
         user_capped_credits.into_iter(),

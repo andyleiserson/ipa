@@ -20,7 +20,7 @@ use crate::{
         Arc,
     },
     telemetry::{stats::Metrics, StepStatsCsvExporter},
-    test_fixture::{logging, make_participants, metrics::MetricsHandle},
+    test_fixture::{logging, make_participants, metrics::MetricsHandle}, ff::PrimeField,
 };
 use async_trait::async_trait;
 use futures::{future::join_all, Future};
@@ -175,14 +175,15 @@ impl TestWorld {
     }
 
     /// See `Runner` below.
-    async fn run_either<'a, C, I, A, O, H, R>(
+    async fn run_either<'a, F, C, I, A, O, H, R>(
         contexts: [C; 3],
         span: Span,
         input: I,
         helper_fn: H,
     ) -> [O; 3]
     where
-        C: UpgradableContext,
+        F: PrimeField,
+        C: UpgradableContext<F>,
         I: IntoShares<A> + Send + 'static,
         A: Send,
         O: Send + Debug,

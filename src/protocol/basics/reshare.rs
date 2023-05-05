@@ -307,7 +307,7 @@ mod tests {
 
         use crate::{
             error::Error,
-            ff::{Field, Fp32BitPrime, Gf2, Gf32Bit},
+            ff::{Field, Fp32BitPrime, Gf2, Gf32Bit, PrimeField},
             helpers::{Direction, Role},
             protocol::{
                 basics::Reshare,
@@ -356,7 +356,7 @@ mod tests {
             }
         }
 
-        async fn reshare_with_additive_attack<C: UpgradableContext, F: Field>(
+        async fn reshare_with_additive_attack<C: UpgradableContext<F>, F: PrimeField>(
             ctx: C,
             input: &Replicated<F>,
             record_id: RecordId,

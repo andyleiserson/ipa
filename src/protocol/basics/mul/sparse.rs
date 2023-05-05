@@ -195,7 +195,7 @@ pub(in crate::protocol) mod test {
         },
         protocol::{
             basics::{mul::sparse::MultiplyWork, MultiplyZeroPositions, SecureMul, ZeroPositions},
-            context::{Context, UpgradableContext, UpgradedContext, Validator},
+            context::{Context, UpgradedContext, Validator},
             step::BitOpStep,
             RecordId,
         },
