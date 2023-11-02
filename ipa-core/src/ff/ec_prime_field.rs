@@ -7,7 +7,7 @@ use typenum::U32;
 use crate::{
     ff::{boolean_array::BA256, Field, Serializable},
     protocol::prss::FromRandomU128,
-    secret_sharing::{Block, SharedValue},
+    secret_sharing::{Block, SharedValue, StdArray},
 };
 
 impl Block for Scalar {
@@ -16,7 +16,7 @@ impl Block for Scalar {
 
 ///implements the Scalar field for elliptic curve 25519
 /// we use elements in Fp25519 to generate curve points and operate on the curve
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Fp25519(<Self as SharedValue>::Storage);
 
 impl Fp25519 {
@@ -35,6 +35,7 @@ impl Fp25519 {
 ///trait for secret sharing
 impl SharedValue for Fp25519 {
     type Storage = Scalar;
+    type Array<const N: usize> = StdArray<Fp25519, N>;
     const BITS: u32 = 256;
     const ZERO: Self = Self(Scalar::ZERO);
 }

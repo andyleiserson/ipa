@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, iter::zip, ops::Deref};
+use std::{array, borrow::Borrow, iter::zip, ops::Deref};
 
 use crate::{
     ff::{Field, PrimeField},
@@ -20,7 +20,7 @@ pub fn into_bits<F: PrimeField>(v: F) -> BitDecomposed<F> {
     })
 }
 
-/// Deconstructs a value into N values, one for each bi3t.
+/// Deconstructs a value into N values, one for each bit.
 /// # Panics
 /// It won't
 #[must_use]
@@ -37,28 +37,63 @@ pub trait Reconstruct<T> {
     fn reconstruct(&self) -> T;
 }
 
+/// Alternate version of `Reconstruct` for vectors.
+///
+/// There is no difference in the traits, but this avoids having to add
+/// type annotations everywhere to disambiguate whether a single-bit
+/// result should be reconstructed as `F` or `[F; 1]`.
+pub trait ReconstructArr<T> {
+    /// Validates correctness of the secret sharing scheme.
+    ///
+    /// # Panics
+    /// Panics if the given input is not a valid replicated secret share.
+    fn reconstruct_arr(&self) -> T;
+}
+
+fn raw_reconstruct<F: Field>(s0l: F, s0r: F, s1l: F, s1r: F, s2l: F, s2r: F) -> F {
+    assert_eq!(s0l + s1l + s2l, s0r + s1r + s2r,);
+
+    assert_eq!(s0r, s1l);
+    assert_eq!(s1r, s2l);
+    assert_eq!(s2r, s0l);
+
+    s0l + s1l + s2l
+}
+
 impl<F: Field> Reconstruct<F> for [&Replicated<F>; 3] {
     fn reconstruct(&self) -> F {
-        let s0 = &self[0];
-        let s1 = &self[1];
-        let s2 = &self[2];
-
-        assert_eq!(
-            s0.left() + s1.left() + s2.left(),
-            s0.right() + s1.right() + s2.right(),
-        );
-
-        assert_eq!(s0.right(), s1.left());
-        assert_eq!(s1.right(), s2.left());
-        assert_eq!(s2.right(), s0.left());
-
-        s0.left() + s1.left() + s2.left()
+        raw_reconstruct(
+            self[0].left(),
+            self[0].right(),
+            self[1].left(),
+            self[1].right(),
+            self[2].left(),
+            self[2].right(),
+        )
     }
 }
 
 impl<F: Field> Reconstruct<F> for [Replicated<F>; 3] {
     fn reconstruct(&self) -> F {
         [&self[0], &self[1], &self[2]].reconstruct()
+    }
+}
+
+impl<F: Field, const N: usize> ReconstructArr<[F; N]> for [Replicated<F, N>; 3] {
+    fn reconstruct_arr(&self) -> [F; N] {
+        todo!();
+        /*
+        array::from_fn(|i| {
+            let s0l = self[0].left_arr()[i];
+            let s0r = self[0].right_arr()[i];
+            let s1l = self[1].left_arr()[i];
+            let s1r = self[1].right_arr()[i];
+            let s2l = self[2].left_arr()[i];
+            let s2r = self[2].right_arr()[i];
+
+            raw_reconstruct(s0l, s0r, s1l, s1r, s2l, s2r)
+        })
+        */
     }
 }
 

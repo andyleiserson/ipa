@@ -9,23 +9,28 @@ use typenum::Unsigned;
 use crate::{
     ff::{boolean::Boolean, ArrayAccess, Expand, Field, Gf2, Serializable},
     secret_sharing::{
-        replicated::ReplicatedSecretSharing, Linear as LinearSecretSharing, SecretSharing,
-        SharedValue,
+        replicated::ReplicatedSecretSharing, FieldArray, Linear as LinearSecretSharing,
+        SecretSharing, SharedValue, SharedValueArray,
     },
 };
 
+/// Additive secret sharing.
+///
+/// `AdditiveShare` holds two out of three shares of an additive secret sharing, either of a single
+/// value with type `V`, or a vector of such values.
 #[derive(Clone, PartialEq, Eq)]
-pub struct AdditiveShare<V: SharedValue>(pub V, pub V);
+pub struct AdditiveShare<V: SharedValue, const N: usize = 1>(V::Array<N>, V::Array<N>);
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct ASIterator<T: Iterator>(pub T, pub T);
 
-impl<V: SharedValue> SecretSharing<V> for AdditiveShare<V> {
-    const ZERO: Self = AdditiveShare::ZERO;
+impl<V: SharedValue, const N: usize> SecretSharing<V> for AdditiveShare<V, N> {
+    const ZERO: Self = Self(V::Array::ZERO, V::Array::ZERO);
 }
-impl<F: Field> LinearSecretSharing<F> for AdditiveShare<F> {}
 
-impl<V: SharedValue + Debug> Debug for AdditiveShare<V> {
+impl<F: Field, const N: usize> LinearSecretSharing<F> for AdditiveShare<F, N> {}
+
+impl<V: SharedValue + Debug, const N: usize> Debug for AdditiveShare<V, N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "({:?}, {:?})", self.0, self.1)
     }
@@ -39,24 +44,38 @@ impl<V: SharedValue> Default for AdditiveShare<V> {
 
 impl<V: SharedValue> AdditiveShare<V> {
     /// Replicated secret share where both left and right values are `F::ZERO`
-    pub const ZERO: Self = Self(V::ZERO, V::ZERO);
+    pub const ZERO: Self = Self(V::Array::ZERO, V::Array::ZERO);
 
     pub fn as_tuple(&self) -> (V, V) {
-        (self.0, self.1)
+        (self.0.index(0), self.1.index(0))
     }
 }
 
 impl<V: SharedValue> ReplicatedSecretSharing<V> for AdditiveShare<V> {
     fn new(a: V, b: V) -> Self {
-        Self(a, b)
+        Self(V::Array::from_item(a), V::Array::from_item(b))
     }
 
     fn left(&self) -> V {
-        self.0
+        self.0.index(0)
     }
 
     fn right(&self) -> V {
-        self.1
+        self.1.index(0)
+    }
+}
+
+impl<V: SharedValue, const N: usize> AdditiveShare<V, N> {
+    pub fn new_arr(a: V::Array<N>, b: V::Array<N>) -> Self {
+        Self(a, b)
+    }
+
+    pub fn left_arr(&self) -> &V::Array<N> {
+        &self.0
+    }
+
+    pub fn right_arr(&self) -> &V::Array<N> {
+        &self.1
     }
 }
 
@@ -140,15 +159,20 @@ where
     }
 }
 
-impl<'a, 'b, V: SharedValue> Add<&'b AdditiveShare<V>> for &'a AdditiveShare<V> {
-    type Output = AdditiveShare<V>;
+impl<'a, 'b, V: SharedValue, const N: usize> Add<&'b AdditiveShare<V, N>>
+    for &'a AdditiveShare<V, N>
+{
+    type Output = AdditiveShare<V, N>;
 
-    fn add(self, rhs: &'b AdditiveShare<V>) -> Self::Output {
-        AdditiveShare(self.0 + rhs.0, self.1 + rhs.1)
+    fn add(self, rhs: &'b AdditiveShare<V, N>) -> Self::Output {
+        AdditiveShare(
+            Add::add(self.0.clone(), &rhs.0),
+            Add::add(self.1.clone(), &rhs.1),
+        )
     }
 }
 
-impl<V: SharedValue> Add<Self> for AdditiveShare<V> {
+impl<V: SharedValue, const N: usize> Add<Self> for AdditiveShare<V, N> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -156,15 +180,15 @@ impl<V: SharedValue> Add<Self> for AdditiveShare<V> {
     }
 }
 
-impl<V: SharedValue> Add<AdditiveShare<V>> for &AdditiveShare<V> {
-    type Output = AdditiveShare<V>;
+impl<V: SharedValue, const N: usize> Add<AdditiveShare<V, N>> for &AdditiveShare<V, N> {
+    type Output = AdditiveShare<V, N>;
 
-    fn add(self, rhs: AdditiveShare<V>) -> Self::Output {
+    fn add(self, rhs: AdditiveShare<V, N>) -> Self::Output {
         Add::add(self, &rhs)
     }
 }
 
-impl<V: SharedValue> Add<&AdditiveShare<V>> for AdditiveShare<V> {
+impl<V: SharedValue, const N: usize> Add<&AdditiveShare<V, N>> for AdditiveShare<V, N> {
     type Output = Self;
 
     fn add(self, rhs: &Self) -> Self::Output {
@@ -172,28 +196,28 @@ impl<V: SharedValue> Add<&AdditiveShare<V>> for AdditiveShare<V> {
     }
 }
 
-impl<V: SharedValue> AddAssign<&Self> for AdditiveShare<V> {
+impl<V: SharedValue, const N: usize> AddAssign<&Self> for AdditiveShare<V, N> {
     fn add_assign(&mut self, rhs: &Self) {
-        self.0 += rhs.0;
-        self.1 += rhs.1;
+        self.0 += &rhs.0;
+        self.1 += &rhs.1;
     }
 }
 
-impl<V: SharedValue> AddAssign<Self> for AdditiveShare<V> {
+impl<V: SharedValue, const N: usize> AddAssign<Self> for AdditiveShare<V, N> {
     fn add_assign(&mut self, rhs: Self) {
         AddAssign::add_assign(self, &rhs);
     }
 }
 
-impl<V: SharedValue> Neg for &AdditiveShare<V> {
-    type Output = AdditiveShare<V>;
+impl<V: SharedValue, const N: usize> Neg for &AdditiveShare<V, N> {
+    type Output = AdditiveShare<V, N>;
 
     fn neg(self) -> Self::Output {
-        AdditiveShare(-self.0, -self.1)
+        AdditiveShare(-self.0.clone(), -self.1.clone())
     }
 }
 
-impl<V: SharedValue> Neg for AdditiveShare<V> {
+impl<V: SharedValue, const N: usize> Neg for AdditiveShare<V, N> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -201,15 +225,18 @@ impl<V: SharedValue> Neg for AdditiveShare<V> {
     }
 }
 
-impl<V: SharedValue> Sub<Self> for &AdditiveShare<V> {
-    type Output = AdditiveShare<V>;
+impl<V: SharedValue, const N: usize> Sub<Self> for &AdditiveShare<V, N> {
+    type Output = AdditiveShare<V, N>;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        AdditiveShare(self.0 - rhs.0, self.1 - rhs.1)
+        AdditiveShare(
+            Sub::sub(self.0.clone(), &rhs.0),
+            Sub::sub(self.1.clone(), &rhs.1),
+        )
     }
 }
 
-impl<V: SharedValue> Sub<Self> for AdditiveShare<V> {
+impl<V: SharedValue, const N: usize> Sub<Self> for AdditiveShare<V, N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -217,7 +244,7 @@ impl<V: SharedValue> Sub<Self> for AdditiveShare<V> {
     }
 }
 
-impl<V: SharedValue> Sub<&Self> for AdditiveShare<V> {
+impl<V: SharedValue, const N: usize> Sub<&Self> for AdditiveShare<V, N> {
     type Output = Self;
 
     fn sub(self, rhs: &Self) -> Self::Output {
@@ -225,36 +252,39 @@ impl<V: SharedValue> Sub<&Self> for AdditiveShare<V> {
     }
 }
 
-impl<V: SharedValue> Sub<AdditiveShare<V>> for &AdditiveShare<V> {
-    type Output = AdditiveShare<V>;
+impl<V: SharedValue, const N: usize> Sub<AdditiveShare<V, N>> for &AdditiveShare<V, N> {
+    type Output = AdditiveShare<V, N>;
 
-    fn sub(self, rhs: AdditiveShare<V>) -> Self::Output {
+    fn sub(self, rhs: AdditiveShare<V, N>) -> Self::Output {
         Sub::sub(self, &rhs)
     }
 }
 
-impl<V: SharedValue> SubAssign<&Self> for AdditiveShare<V> {
+impl<V: SharedValue, const N: usize> SubAssign<&Self> for AdditiveShare<V, N> {
     fn sub_assign(&mut self, rhs: &Self) {
-        self.0 -= rhs.0;
-        self.1 -= rhs.1;
+        self.0 -= &rhs.0;
+        self.1 -= &rhs.1;
     }
 }
 
-impl<V: SharedValue> SubAssign<Self> for AdditiveShare<V> {
+impl<V: SharedValue, const N: usize> SubAssign<Self> for AdditiveShare<V, N> {
     fn sub_assign(&mut self, rhs: Self) {
         SubAssign::sub_assign(self, &rhs);
     }
 }
 
-impl<'a, 'b, F: Field> Mul<&'b F> for &'a AdditiveShare<F> {
-    type Output = AdditiveShare<F>;
+impl<'a, 'b, F: Field, const N: usize> Mul<&'b F> for &'a AdditiveShare<F, N> {
+    type Output = AdditiveShare<F, N>;
 
     fn mul(self, rhs: &'b F) -> Self::Output {
-        AdditiveShare(self.0 * *rhs, self.1 * *rhs)
+        AdditiveShare(
+            FieldArray::<F, N>::mul_scalar(self.0.clone(), *rhs),
+            FieldArray::<F, N>::mul_scalar(self.1.clone(), *rhs),
+        )
     }
 }
 
-impl<F: Field> Mul<F> for AdditiveShare<F> {
+impl<F: Field, const N: usize> Mul<F> for AdditiveShare<F, N> {
     type Output = Self;
 
     fn mul(self, rhs: F) -> Self::Output {
@@ -262,7 +292,7 @@ impl<F: Field> Mul<F> for AdditiveShare<F> {
     }
 }
 
-impl<F: Field> Mul<&F> for AdditiveShare<F> {
+impl<'a, F: Field, const N: usize> Mul<&'a F> for AdditiveShare<F, N> {
     type Output = Self;
 
     fn mul(self, rhs: &F) -> Self::Output {
@@ -270,8 +300,8 @@ impl<F: Field> Mul<&F> for AdditiveShare<F> {
     }
 }
 
-impl<F: Field> Mul<F> for &AdditiveShare<F> {
-    type Output = AdditiveShare<F>;
+impl<F: Field, const N: usize> Mul<F> for &AdditiveShare<F, N> {
+    type Output = AdditiveShare<F, N>;
 
     fn mul(self, rhs: F) -> Self::Output {
         Mul::mul(self, &rhs)
@@ -418,8 +448,14 @@ mod tests {
         a3: &AdditiveShare<Fp31>,
         expected_value: u128,
     ) {
-        assert_eq!(a1.0 + a2.0 + a3.0, Fp31::truncate_from(expected_value));
-        assert_eq!(a1.1 + a2.1 + a3.1, Fp31::truncate_from(expected_value));
+        assert_eq!(
+            a1.left() + a2.left() + a3.left(),
+            Fp31::truncate_from(expected_value)
+        );
+        assert_eq!(
+            a1.right() + a2.right() + a3.right(),
+            Fp31::truncate_from(expected_value)
+        );
     }
 
     fn addition_test_case(a: (u8, u8, u8), b: (u8, u8, u8), expected_output: u128) {

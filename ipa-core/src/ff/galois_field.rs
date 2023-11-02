@@ -133,7 +133,7 @@ fn clmul<GF: GaloisField>(a: GF, b: GF) -> u128 {
 }
 
 macro_rules! bit_array_impl {
-    ( $modname:ident, $name:ident, $store:ty, $bits:expr, $one:expr, $polynomial:expr, $({$($extra:item)*})? ) => {
+    ( $modname:ident, $name:ident, $store:ty, $array:ty, $bits:expr, $one:expr, $polynomial:expr, $({$($extra:item)*})? ) => {
         #[allow(clippy::suspicious_arithmetic_impl)]
         #[allow(clippy::suspicious_op_assign_impl)]
         mod $modname {
@@ -149,6 +149,7 @@ macro_rules! bit_array_impl {
 
             impl SharedValue for $name {
                 type Storage = $store;
+                type Array<const N: usize> = $array;
                 const BITS: u32 = $bits;
                 const ZERO: Self = Self(<$store>::ZERO);
             }
@@ -592,6 +593,7 @@ bit_array_impl!(
     bit_array_40,
     Gf40Bit,
     U8_5,
+    crate::secret_sharing::StdArray<Gf40Bit, N>,
     40,
     bitarr!(const u8, Lsb0; 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
     // x^40 + x^5 + x^3 + x^2 + 1
@@ -602,6 +604,7 @@ bit_array_impl!(
     bit_array_32,
     Gf32Bit,
     U8_4,
+    crate::secret_sharing::StdArray<Gf32Bit, N>,
     32,
     bitarr!(const u8, Lsb0; 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
     // x^32 + x^7 + x^3 + x^2 + 1
@@ -612,6 +615,7 @@ bit_array_impl!(
     bit_array_20,
     Gf20Bit,
     U8_3,
+    crate::secret_sharing::StdArray<Gf20Bit, N>,
     20,
     bitarr!(const u8, Lsb0; 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
     // x^20 + x^7 + x^3 + x^2 + 1
@@ -622,6 +626,7 @@ bit_array_impl!(
     bit_array_8,
     Gf8Bit,
     U8_1,
+    crate::secret_sharing::StdArray<Gf8Bit, N>,
     8,
     bitarr!(const u8, Lsb0; 1, 0, 0, 0, 0, 0, 0, 0),
     // x^8 + x^4 + x^3 + x + 1
@@ -632,6 +637,7 @@ bit_array_impl!(
     bit_array_9,
     Gf9Bit,
     U8_2,
+    crate::secret_sharing::StdArray<Gf9Bit, N>,
     9,
     bitarr!(const u8, Lsb0; 1, 0, 0, 0, 0, 0, 0, 0, 0),
     // x^9 + x^4 + x^3 + x + 1
@@ -639,9 +645,21 @@ bit_array_impl!(
 );
 
 bit_array_impl!(
+    bit_array_5,
+    Gf5Bit,
+    U8_1,
+    crate::secret_sharing::StdArray<Gf5Bit, N>,
+    5,
+    bitarr!(const u8, Lsb0; 1, 0, 0, 0, 0),
+    // x^5 + x^4 + x^3 + x^2 + x + 1
+    0b111_111_u128,
+);
+
+bit_array_impl!(
     bit_array_3,
     Gf3Bit,
     U8_1,
+    crate::secret_sharing::StdArray<Gf3Bit, N>,
     3,
     bitarr!(const u8, Lsb0; 1, 0, 0),
     // x^3 + x + 1
@@ -652,6 +670,7 @@ bit_array_impl!(
     bit_array_1,
     Gf2,
     U8_1,
+    crate::secret_sharing::Gf2Array<N>,
     1,
     bitarr!(const u8, Lsb0; 1),
     // x

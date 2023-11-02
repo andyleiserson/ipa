@@ -34,11 +34,12 @@ macro_rules! field_impl {
         use super::*;
         use crate::ff::FieldType;
 
-        #[derive(Clone, Copy, PartialEq)]
+        #[derive(Clone, Copy, PartialEq, Eq)]
         pub struct $field(<Self as SharedValue>::Storage);
 
         impl SharedValue for $field {
             type Storage = $store;
+            type Array<const N: usize> = crate::secret_sharing::StdArray<$field, N>;
             const BITS: u32 = $bits;
             const ZERO: Self = $field(0);
         }

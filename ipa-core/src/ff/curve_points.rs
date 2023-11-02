@@ -7,7 +7,7 @@ use typenum::U32;
 
 use crate::{
     ff::{ec_prime_field::Fp25519, Serializable},
-    secret_sharing::{Block, SharedValue},
+    secret_sharing::{Block, SharedValue, StdArray},
 };
 
 impl Block for CompressedRistretto {
@@ -25,12 +25,16 @@ impl Block for CompressedRistretto {
 /// since we always generate curve points from scalars (elements in Fp25519) and
 /// only deserialize previously serialized valid points, panics will not occur
 /// However, we still added a debug assert to deserialize since values are sent by other servers
-#[derive(Clone, Copy, PartialEq, Debug)]
+// TODO: resolve whether this should be Eq. `CompressedRistretto` is Eq, so maybe it's fine for this
+// to be Eq as well.  If this is not Eq, that means that SharedValue cannot be Eq, which is a
+// problem for some tests that rely on SharedValues being Eq.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct RP25519(CompressedRistretto);
 
 /// Implementing trait for secret sharing
 impl SharedValue for RP25519 {
     type Storage = CompressedRistretto;
+    type Array<const N: usize> = StdArray<RP25519, N>;
     const BITS: u32 = 256;
     const ZERO: Self = Self(CompressedRistretto([0_u8; 32]));
 }
