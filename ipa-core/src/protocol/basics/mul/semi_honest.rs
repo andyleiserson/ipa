@@ -46,7 +46,7 @@ where
     //zeros.1.check(role, "b", b);
 
     // Shared randomness used to mask the values that are sent.
-    //let (s0, s1) = ctx.prss().generate(record_id);
+    let (s0, s1) = ctx.prss().generate(record_id);
 
     /*
     let mut s0 = Vec::with_capacity(F::Array::<N>::capacity());
@@ -62,8 +62,8 @@ where
     let s0 = F::Array::try_from(s0).unwrap();
     let s1 = F::Array::try_from(s1).unwrap();
     */
-    let s0 = F::Array::from_prss(ctx.prss());
-    let s1 = F::Array::from_prss(ctx.prss());
+    //let s0 = F::Array::from_prss(ctx.prss());
+    //let s1 = F::Array::from_prss(ctx.prss());
     let mut rhs = F::Array::mul_elements(a.right_arr(), b.right_arr());
 
     if need_to_send {

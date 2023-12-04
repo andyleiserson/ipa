@@ -64,7 +64,7 @@ pub trait Block: Sized + Copy + Debug {
 /// (capable of supporting addition and multiplication) is desired, the `Field` trait extends
 /// `SharedValue` to require multiplication.
 pub trait SharedValue:
-    Clone + Copy + PartialEq + Debug + Send + Sync + Sized + Additive + Serializable + FromPrss + 'static
+    Clone + Copy + PartialEq + Debug + Send + Sync + Sized + Additive + Serializable + /*FromPrss +*/ 'static
 {
     type Storage: Block;
     type Array<const N: usize>: SharedValueArray<Self>;
