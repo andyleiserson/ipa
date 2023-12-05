@@ -91,7 +91,7 @@ impl ToBitConversionTriples for RawRandomBits {
     }
 
     fn into_residual(self) -> Self::Residual {
-        Self::Residual::default()
+        // Self::Residual is ()
     }
 }
 

@@ -155,7 +155,7 @@ impl<B: SharedValue + ArrayAccess<Output = T>, T: Into<bool>> ToBitConversionTri
     }
 
     fn into_residual(self) -> Self::Residual {
-        Self::Residual::default()
+        // Self::Residual is ()
     }
 }
 
@@ -173,7 +173,7 @@ impl ToBitConversionTriples for BitDecomposed<Replicated<Gf2>> {
     }
 
     fn into_residual(self) -> Self::Residual {
-        Self::Residual::default()
+        // Self::Residual is ()
     }
 }
 
