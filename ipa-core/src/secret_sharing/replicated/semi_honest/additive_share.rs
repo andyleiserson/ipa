@@ -10,7 +10,7 @@ use crate::{
     ff::{boolean::Boolean, ArrayAccess, Expand, Field, GaloisField, Gf2, Serializable, boolean_array::{BAIterator, BA64}, CustomArray},
     secret_sharing::{
         replicated::ReplicatedSecretSharing, FieldArray, Linear as LinearSecretSharing,
-        SecretSharing, SharedValue, SharedValueArray,
+        SecretSharing, SharedValue, SharedValueArray, Gf2Array,
     },
 };
 
@@ -94,15 +94,13 @@ impl BorrowReplicated<bool> for (bool, bool) {
     }
 }
 
-impl BorrowReplicated<bool> for AdditiveShare<Gf2> {
-    fn borrow_left(&self) -> &bool {
-        const BIT0: usize = 0;
-        &self.0[BIT0]
+impl BorrowReplicated<Gf2Array<1>> for AdditiveShare<Gf2> {
+    fn borrow_left(&self) -> &Gf2Array<1> {
+        &self.0
     }
 
-    fn borrow_right(&self) -> &bool {
-        const BIT0: usize = 0;
-        &self.1[BIT0]
+    fn borrow_right(&self) -> &Gf2Array<1> {
+        &self.1
     }
 }
 
