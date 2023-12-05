@@ -10,7 +10,7 @@ use ipa_macros::Step;
 
 use crate::{
     error::Error,
-    ff::{boolean::Boolean, CustomArray, Expand, Field, PrimeField, Serializable},
+    ff::{boolean::Boolean, ArrayAccess, CustomArray, Expand, Field, PrimeField, Serializable},
     helpers::Role,
     protocol::{
         basics::{if_else, SecureMul, ShareKnownValue},
@@ -210,10 +210,12 @@ pub struct CappedAttributionOutputs<BK: SharedValue, TV: SharedValue> {
     pub capped_attributed_trigger_value: Replicated<TV>,
 }
 
-impl<
-        BK: SharedValue + CustomArray<Element = Boolean>,
-        TV: SharedValue + CustomArray<Element = Boolean>,
-    > ToBitConversionTriples for CappedAttributionOutputs<BK, TV>
+impl<BK, TV> ToBitConversionTriples for CappedAttributionOutputs<BK, TV>
+where
+    BK: SharedValue,
+    TV: SharedValue,
+    Replicated<BK>: CustomArray<Element = Replicated<Boolean>>,
+    Replicated<TV>: CustomArray<Element = Replicated<Boolean>>,
 {
     type Residual = ();
 
@@ -226,34 +228,18 @@ impl<
         let i: usize = i.try_into().unwrap();
         let bk_bits: usize = BK::BITS.try_into().unwrap();
         if i < bk_bits {
-            BitConversionTriple::new(
+            BitConversionTriple::new::<bool, _>(
                 role,
-                self.attributed_breakdown_key_bits.0.get(i).unwrap() == Boolean::ONE,
-                self.attributed_breakdown_key_bits.1.get(i).unwrap() == Boolean::ONE,
+                self.attributed_breakdown_key_bits.get(i).unwrap(),
             )
         } else {
             let i = i - bk_bits;
-            BitConversionTriple::new(
-                role,
-                self.capped_attributed_trigger_value.0.get(i).unwrap() == Boolean::ONE,
-                self.capped_attributed_trigger_value.1.get(i).unwrap() == Boolean::ONE,
-            )
+            BitConversionTriple::new(role, self.capped_attributed_trigger_value.get(i).unwrap())
         }
     }
 
-    fn into_triples<F, I>(
-        self,
-        role: Role,
-        indices: I,
-    ) -> (
-        BitDecomposed<BitConversionTriple<Replicated<F>>>,
-        Self::Residual,
-    )
-    where
-        F: PrimeField,
-        I: IntoIterator<Item = u32>,
-    {
-        (self.triple_range(role, indices), ())
+    fn into_residual(self) -> Self::Residual {
+        Self::Residual::default()
     }
 }
 

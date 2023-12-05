@@ -7,7 +7,7 @@ use generic_array::{ArrayLength, GenericArray};
 use typenum::Unsigned;
 
 use crate::{
-    ff::{ArrayAccess, Expand, Field, Serializable},
+    ff::{boolean::Boolean, ArrayAccess, Expand, Field, GaloisField, Gf2, Serializable},
     secret_sharing::{
         replicated::ReplicatedSecretSharing, Linear as LinearSecretSharing, SecretSharing,
         SharedValue,
@@ -57,6 +57,64 @@ impl<V: SharedValue> ReplicatedSecretSharing<V> for AdditiveShare<V> {
 
     fn right(&self) -> V {
         self.1
+    }
+}
+
+pub trait BorrowReplicated<V> {
+    fn borrow_left(&self) -> &V;
+    fn borrow_right(&self) -> &V;
+}
+
+impl BorrowReplicated<bool> for (bool, bool) {
+    fn borrow_left(&self) -> &bool {
+        &self.0
+    }
+
+    fn borrow_right(&self) -> &bool {
+        &self.1
+    }
+}
+
+impl BorrowReplicated<bool> for AdditiveShare<Gf2> {
+    fn borrow_left(&self) -> &bool {
+        const BIT0: usize = 0;
+        &self.0[BIT0]
+    }
+
+    fn borrow_right(&self) -> &bool {
+        const BIT0: usize = 0;
+        &self.1[BIT0]
+    }
+}
+
+impl BorrowReplicated<bool> for AdditiveShare<Boolean> {
+    fn borrow_left(&self) -> &bool {
+        if self.0.into() {
+            &true
+        } else {
+            &false
+        }
+    }
+
+    fn borrow_right(&self) -> &bool {
+        if self.1.into() {
+            &true
+        } else {
+            &false
+        }
+    }
+}
+
+pub trait IndexReplicated<'a, V> {
+    type Output: BorrowReplicated<V>;
+
+    fn index(&'a self, index: usize) -> Self::Output;
+}
+
+impl<'a, B: GaloisField> IndexReplicated<'a, bool> for AdditiveShare<B> {
+    type Output = (bool, bool);
+    fn index(&'a self, index: usize) -> Self::Output {
+        (self.0[index], self.1[index])
     }
 }
 

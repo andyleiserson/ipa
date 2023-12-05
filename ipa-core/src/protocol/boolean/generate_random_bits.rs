@@ -14,8 +14,8 @@ use crate::{
         RecordId,
     },
     secret_sharing::{
-        replicated::semi_honest::AdditiveShare as Replicated, BitDecomposed,
-        Linear as LinearSecretSharing,
+        replicated::semi_honest::{AdditiveShare as Replicated, BorrowReplicated, IndexReplicated},
+        BitDecomposed, Linear as LinearSecretSharing,
     },
 };
 
@@ -25,6 +25,37 @@ struct RawRandomBits {
     count: u32,
     left: u64,
     right: u64,
+}
+
+struct RawRandomBitsIndex<'a> {
+    bits: &'a RawRandomBits,
+    index: usize,
+}
+
+impl<'a> IndexReplicated<'a, bool> for RawRandomBits {
+    type Output = RawRandomBitsIndex<'a>;
+
+    fn index(&'a self, index: usize) -> Self::Output {
+        RawRandomBitsIndex { bits: self, index }
+    }
+}
+
+impl<'a> BorrowReplicated<bool> for RawRandomBitsIndex<'a> {
+    fn borrow_left(&self) -> &bool {
+        if ((self.bits.left >> self.index) & 1) == 1 {
+            &true
+        } else {
+            &false
+        }
+    }
+
+    fn borrow_right(&self) -> &bool {
+        if ((self.bits.right >> self.index) & 1) == 1 {
+            &true
+        } else {
+            &false
+        }
+    }
 }
 
 impl RawRandomBits {
@@ -56,26 +87,11 @@ impl ToBitConversionTriples for RawRandomBits {
     fn triple<F: PrimeField>(&self, role: Role, i: u32) -> BitConversionTriple<Replicated<F>> {
         debug_assert!(u128::BITS - F::PRIME.into().leading_zeros() >= self.count);
         assert!(i < self.count);
-        BitConversionTriple::new(
-            role,
-            ((self.left >> i) & 1) == 1,
-            ((self.right >> i) & 1) == 1,
-        )
+        BitConversionTriple::new(role, self.index(i.try_into().unwrap()))
     }
 
-    fn into_triples<F, I>(
-        self,
-        role: Role,
-        indices: I,
-    ) -> (
-        BitDecomposed<BitConversionTriple<Replicated<F>>>,
-        Self::Residual,
-    )
-    where
-        F: PrimeField,
-        I: IntoIterator<Item = u32>,
-    {
-        (self.triple_range(role, indices), ())
+    fn into_residual(self) -> Self::Residual {
+        Self::Residual::default()
     }
 }
 

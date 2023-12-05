@@ -43,7 +43,10 @@ use crate::{
         RecordId,
     },
     secret_sharing::{
-        replicated::{semi_honest::AdditiveShare as Replicated, ReplicatedSecretSharing},
+        replicated::{
+            semi_honest::{AdditiveShare as Replicated, BorrowReplicated, IndexReplicated},
+            ReplicatedSecretSharing,
+        },
         BitDecomposed, Linear as LinearSecretSharing, SharedValue,
     },
     seq_join::seq_join,
@@ -72,9 +75,9 @@ impl<F: PrimeField> BitConversionTriple<Replicated<F>> {
     /// If any bits in the bitwise shared input cannot be converted into the given field `F`
     /// without truncation or if the bit index is out of range for `B`.
     #[must_use]
-    pub fn new(helper_role: Role, left: bool, right: bool) -> Self {
-        let left = F::try_from(u128::from(left)).unwrap();
-        let right = F::try_from(u128::from(right)).unwrap();
+    pub fn new<G: Copy + Into<bool>, T: BorrowReplicated<G>>(helper_role: Role, src: T) -> Self {
+        let left = F::try_from(u128::from((*src.borrow_left()).into())).unwrap();
+        let right = F::try_from(u128::from((*src.borrow_right()).into())).unwrap();
         Self(match helper_role {
             Role::H1 => [
                 Replicated::new(left, F::ZERO),
@@ -95,7 +98,7 @@ impl<F: PrimeField> BitConversionTriple<Replicated<F>> {
     }
 }
 
-pub trait ToBitConversionTriples {
+pub trait ToBitConversionTriples: Sized {
     /// The type of a collection of fields that need to be carried in the stream without conversion.
     type Residual: Send; // TODO: associated type defaults would be nice here.
 
@@ -118,6 +121,8 @@ pub trait ToBitConversionTriples {
     {
         BitDecomposed::new(indices.into_iter().map(|i| self.triple(role, i)))
     }
+
+    fn into_residual(self) -> Self::Residual;
 
     fn into_triples<F, I>(
         self,
@@ -150,19 +155,25 @@ impl<B: SharedValue + ArrayAccess<Output = T>, T: Into<bool>> ToBitConversionTri
         )
     }
 
-    fn into_triples<F, I>(
-        self,
-        role: Role,
-        indices: I,
-    ) -> (
-        BitDecomposed<BitConversionTriple<Replicated<F>>>,
-        Self::Residual,
-    )
-    where
-        F: PrimeField,
-        I: IntoIterator<Item = u32>,
-    {
-        (self.triple_range(role, indices), ())
+    fn into_residual(self) -> Self::Residual {
+        Self::Residual::default()
+    }
+}
+
+impl<B: GaloisField> ToBitConversionTriples for Replicated<B> {
+    type Residual = ();
+
+    fn bits(&self) -> u32 {
+        B::BITS
+    }
+
+    fn triple<F: PrimeField>(&self, role: Role, i: u32) -> BitConversionTriple<Replicated<F>> {
+        let i = i.try_into().unwrap();
+        BitConversionTriple::new(role, self.index(i))
+    }
+
+    fn into_residual(self) -> Self::Residual {
+        Self::Residual::default()
     }
 }
 
@@ -174,24 +185,13 @@ impl ToBitConversionTriples for BitDecomposed<Replicated<Gf2>> {
     }
 
     fn triple<F: PrimeField>(&self, role: Role, i: u32) -> BitConversionTriple<Replicated<F>> {
-        const BIT0: u32 = 0;
+        const BIT0: usize = 0;
         let i = usize::try_from(i).unwrap();
-        BitConversionTriple::new(role, self[i].left()[BIT0], self[i].right()[BIT0])
+        BitConversionTriple::new(role, self[i].index(BIT0))
     }
 
-    fn into_triples<F, I>(
-        self,
-        role: Role,
-        indices: I,
-    ) -> (
-        BitDecomposed<BitConversionTriple<Replicated<F>>>,
-        Self::Residual,
-    )
-    where
-        F: PrimeField,
-        I: IntoIterator<Item = u32>,
-    {
-        (self.triple_range(role, indices), ())
+    fn into_residual(self) -> Self::Residual {
+        Self::Residual::default()
     }
 }
 
@@ -408,7 +408,10 @@ mod tests {
         },
         rand::{thread_rng, Rng},
         secret_sharing::{
-            replicated::{semi_honest::AdditiveShare as Replicated, ReplicatedSecretSharing},
+            replicated::{
+                semi_honest::{AdditiveShare as Replicated, IndexReplicated},
+                ReplicatedSecretSharing,
+            },
             IntoShares,
         },
         test_fixture::{Reconstruct, Runner, TestWorld},
@@ -455,26 +458,12 @@ mod tests {
 
         fn triple<F: PrimeField>(&self, role: Role, i: u32) -> BitConversionTriple<Replicated<F>> {
             assert_eq!(i, 0, "there is only one convertible bit in TwoBits");
-            BitConversionTriple::new(
-                role,
-                self.convert.left() == Gf2::ONE,
-                self.convert.right() == Gf2::ONE,
-            )
+            let i = i.try_into().unwrap();
+            BitConversionTriple::new(role, self.convert.index(i))
         }
 
-        fn into_triples<F, I>(
-            self,
-            role: Role,
-            indices: I,
-        ) -> (
-            crate::secret_sharing::BitDecomposed<BitConversionTriple<Replicated<F>>>,
-            Self::Residual,
-        )
-        where
-            F: PrimeField,
-            I: IntoIterator<Item = u32>,
-        {
-            (self.triple_range(role, indices), self.keep)
+        fn into_residual(self) -> Self::Residual {
+            self.keep
         }
     }
 
