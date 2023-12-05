@@ -248,7 +248,10 @@ mod tests {
             },
         },
         rand::thread_rng,
-        secret_sharing::{replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing}, SharedValue},
+        secret_sharing::{
+            replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing},
+            SharedValue,
+        },
         test_executor::run,
         test_fixture::{Reconstruct, Runner, TestWorld},
     };

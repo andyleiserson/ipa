@@ -6,7 +6,12 @@ use crate::ff::Expand;
 use crate::{
     error::Error,
     ff::{ArrayAccess, CustomArray, Field},
-    protocol::{basics::SecureMul, basics::ShareKnownValue, context::Context, step::BitOpStep, RecordId},
+    protocol::{
+        basics::{SecureMul, ShareKnownValue},
+        context::Context,
+        step::BitOpStep,
+        RecordId,
+    },
     secret_sharing::{replicated::semi_honest::AdditiveShare, SharedValue},
 };
 
@@ -225,7 +230,10 @@ mod test {
             },
         },
         rand::thread_rng,
-        secret_sharing::{replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing}, SharedValue},
+        secret_sharing::{
+            replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing},
+            SharedValue,
+        },
         test_executor::run,
         test_fixture::{Reconstruct, Runner, TestWorld},
     };
