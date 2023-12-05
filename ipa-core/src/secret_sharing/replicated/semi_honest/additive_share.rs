@@ -7,7 +7,7 @@ use generic_array::{ArrayLength, GenericArray};
 use typenum::Unsigned;
 
 use crate::{
-    ff::{boolean::Boolean, ArrayAccess, Expand, Field, GaloisField, Gf2, Serializable},
+    ff::{boolean::Boolean, ArrayAccess, Expand, Field, Gf2, Serializable},
     secret_sharing::{
         replicated::ReplicatedSecretSharing, Linear as LinearSecretSharing, SecretSharing,
         SharedValue,
@@ -111,10 +111,17 @@ pub trait IndexReplicated<'a, V> {
     fn index(&'a self, index: usize) -> Self::Output;
 }
 
-impl<'a, B: GaloisField> IndexReplicated<'a, bool> for AdditiveShare<B> {
+impl<'a, B, T> IndexReplicated<'a, bool> for AdditiveShare<B>
+where
+    B: SharedValue + ArrayAccess<Output = T>,
+    T: Into<bool>,
+{
     type Output = (bool, bool);
     fn index(&'a self, index: usize) -> Self::Output {
-        (self.0[index], self.1[index])
+        (
+            self.0.get(index).unwrap().into(),
+            self.1.get(index).unwrap().into(),
+        )
     }
 }
 

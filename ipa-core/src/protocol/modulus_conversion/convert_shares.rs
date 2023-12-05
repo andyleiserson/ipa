@@ -134,7 +134,10 @@ pub trait ToBitConversionTriples: Sized {
     )
     where
         F: PrimeField,
-        I: IntoIterator<Item = u32>;
+        I: IntoIterator<Item = u32>,
+    {
+        (self.triple_range(role, indices), self.into_residual())
+    }
 }
 
 impl<B: SharedValue + ArrayAccess<Output = T>, T: Into<bool>> ToBitConversionTriples
@@ -148,27 +151,6 @@ impl<B: SharedValue + ArrayAccess<Output = T>, T: Into<bool>> ToBitConversionTri
 
     fn triple<F: PrimeField>(&self, role: Role, i: u32) -> BitConversionTriple<Replicated<F>> {
         let i = usize::try_from(i).unwrap();
-        BitConversionTriple::new(
-            role,
-            self.left().get(i).unwrap().into(),
-            self.right().get(i).unwrap().into(),
-        )
-    }
-
-    fn into_residual(self) -> Self::Residual {
-        Self::Residual::default()
-    }
-}
-
-impl<B: GaloisField> ToBitConversionTriples for Replicated<B> {
-    type Residual = ();
-
-    fn bits(&self) -> u32 {
-        B::BITS
-    }
-
-    fn triple<F: PrimeField>(&self, role: Role, i: u32) -> BitConversionTriple<Replicated<F>> {
-        let i = i.try_into().unwrap();
         BitConversionTriple::new(role, self.index(i))
     }
 
