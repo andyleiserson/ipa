@@ -8,7 +8,7 @@ use typenum::{U32, U8};
 use crate::{
     ff::{boolean::Boolean, Serializable},
     protocol::prss::FromRandomU128,
-    secret_sharing::Block,
+    secret_sharing::{replicated::ReplicatedSecretSharing, Block, Gf2Array},
 };
 
 /// The implementation below cannot be constrained without breaking Rust's
@@ -82,7 +82,7 @@ macro_rules! boolean_array_impl {
 
             impl SharedValue for $name {
                 type Storage = Store;
-                type Array = ();
+                type Array<const N: usize> = Gf2Array<N>;
                 const BITS: u32 = $bits;
                 const ZERO: Self = Self(<Store>::ZERO);
             }
@@ -238,6 +238,17 @@ macro_rules! boolean_array_impl {
                     BAIterator {
                         iterator: self.0.iter().take(usize::try_from(<$name>::BITS).unwrap()),
                     }
+                }
+            }
+
+            // complains that no iter method exists, suppressed warnings
+            #[allow(clippy::into_iter_on_ref)]
+            impl<'a> IntoIterator for &'a AdditiveShare<$name> {
+                type Item = AdditiveShare<Boolean>;
+                type IntoIter = ASIterator<BAIterator<'a>>;
+
+                fn into_iter(self) -> Self::IntoIter {
+                    ASIterator::<BAIterator<'a>>(self.left().into_iter(), self.right().into_iter())
                 }
             }
 

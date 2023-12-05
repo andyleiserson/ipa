@@ -74,7 +74,6 @@ where
     TV: SharedValue + CustomArray<Element = Boolean> + Field,
     TS: SharedValue + CustomArray<Element = Boolean> + Field,
     SS: SharedValue + CustomArray<Element = Boolean> + Field,
-    /*
     for<'a> &'a Replicated<SS>: IntoIterator<Item = Replicated<Boolean>>,
     for<'a> &'a Replicated<TS>: IntoIterator<Item = Replicated<Boolean>>,
     for<'a> &'a Replicated<TV>: IntoIterator<Item = Replicated<Boolean>>,
@@ -82,7 +81,6 @@ where
     for<'a> <&'a Replicated<SS> as IntoIterator>::IntoIter: Send,
     for<'a> <&'a Replicated<TV> as IntoIterator>::IntoIter: Send,
     for<'a> <&'a Replicated<TS> as IntoIterator>::IntoIter: Send,
-    */
     F: PrimeField + ExtendableField,
     Replicated<F>: Serializable,
 {
