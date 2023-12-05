@@ -123,16 +123,16 @@ where
         // sh_s: H1: (r1,0), H2: (0,0), H3: (0, r1)
         match ctx.role() {
             Role::H1 => (
-                AdditiveShare(<BA256 as SharedValue>::ZERO, <BA256 as SharedValue>::ZERO),
-                AdditiveShare(r.0, <BA256 as SharedValue>::ZERO),
+                AdditiveShare::new(<BA256 as SharedValue>::ZERO, <BA256 as SharedValue>::ZERO),
+                AdditiveShare::new(r.left(), <BA256 as SharedValue>::ZERO),
             ),
             Role::H2 => (
-                AdditiveShare(<BA256 as SharedValue>::ZERO, r.1),
-                AdditiveShare(<BA256 as SharedValue>::ZERO, <BA256 as SharedValue>::ZERO),
+                AdditiveShare::new(<BA256 as SharedValue>::ZERO, r.right()),
+                AdditiveShare::new(<BA256 as SharedValue>::ZERO, <BA256 as SharedValue>::ZERO),
             ),
             Role::H3 => (
-                AdditiveShare(r.0, <BA256 as SharedValue>::ZERO),
-                AdditiveShare(<BA256 as SharedValue>::ZERO, r.1),
+                AdditiveShare::new(r.left(), <BA256 as SharedValue>::ZERO),
+                AdditiveShare::new(<BA256 as SharedValue>::ZERO, r.right()),
             ),
         }
     };
@@ -163,22 +163,22 @@ where
             .await?;
 
     // this leaks information, but with negligible probability
-    let y = AdditiveShare::<BA256>(sh_y.left(), sh_y.right())
+    let y = AdditiveShare::<BA256>::new(sh_y.left(), sh_y.right())
         .partial_reveal(ctx.narrow(&Step::RevealY), record_id, Role::H3)
         .await?;
 
     match ctx.role() {
-        Role::H1 => Ok(AdditiveShare::<Fp25519>(
-            Fp25519::from(sh_s.0).neg(),
+        Role::H1 => Ok(AdditiveShare::<Fp25519>::new(
+            Fp25519::from(sh_s.left()).neg(),
             Fp25519::from(y.unwrap()),
         )),
-        Role::H2 => Ok(AdditiveShare::<Fp25519>(
+        Role::H2 => Ok(AdditiveShare::<Fp25519>::new(
             Fp25519::from(y.unwrap()),
-            Fp25519::from(sh_r.1).neg(),
+            Fp25519::from(sh_r.right()).neg(),
         )),
-        Role::H3 => Ok(AdditiveShare::<Fp25519>(
-            Fp25519::from(sh_r.0).neg(),
-            Fp25519::from(sh_s.1).neg(),
+        Role::H3 => Ok(AdditiveShare::<Fp25519>::new(
+            Fp25519::from(sh_r.left()).neg(),
+            Fp25519::from(sh_s.right()).neg(),
         )),
     }
 }
@@ -220,7 +220,7 @@ where
     YS: CustomArray<Element = XS::Element> + SharedValue,
     XS::Element: SharedValue,
 {
-    AdditiveShare::<YS>(
+    AdditiveShare::<YS>::new(
         expand_array(&x.left(), offset),
         expand_array(&x.right(), offset),
     )
@@ -248,7 +248,7 @@ mod tests {
             },
         },
         rand::thread_rng,
-        secret_sharing::{replicated::semi_honest::AdditiveShare, SharedValue},
+        secret_sharing::{replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing}, SharedValue},
         test_executor::run,
         test_fixture::{Reconstruct, Runner, TestWorld},
     };
@@ -290,7 +290,7 @@ mod tests {
 
         let a = rng.gen::<BA64>();
 
-        let shared_a = AdditiveShare::<BA64>(rng.gen::<BA64>(), rng.gen::<BA64>());
+        let shared_a = AdditiveShare::new(rng.gen::<BA64>(), rng.gen::<BA64>());
 
         let b = expand_array::<_, BA256>(&a, None);
 
