@@ -4,7 +4,7 @@ use ipa_macros::Step;
 
 use crate::{
     error::Error,
-    ff::{boolean::Boolean, boolean_array::BA64, CustomArray, Field, PrimeField, Serializable},
+    ff::{boolean::Boolean, boolean_array::BA64, CustomArray, Field, PrimeField, Serializable, ArrayAccess},
     protocol::{
         context::{UpgradableContext, UpgradedContext},
         ipa_prf::{
@@ -74,6 +74,7 @@ where
     TV: SharedValue + CustomArray<Element = Boolean> + Field,
     TS: SharedValue + CustomArray<Element = Boolean> + Field,
     SS: SharedValue + CustomArray<Element = Boolean> + Field,
+    /*
     for<'a> &'a Replicated<SS>: IntoIterator<Item = Replicated<Boolean>>,
     for<'a> &'a Replicated<TS>: IntoIterator<Item = Replicated<Boolean>>,
     for<'a> &'a Replicated<TV>: IntoIterator<Item = Replicated<Boolean>>,
@@ -81,6 +82,7 @@ where
     for<'a> <&'a Replicated<SS> as IntoIterator>::IntoIter: Send,
     for<'a> <&'a Replicated<TV> as IntoIterator>::IntoIter: Send,
     for<'a> <&'a Replicated<TS> as IntoIterator>::IntoIter: Send,
+    */
     F: PrimeField + ExtendableField,
     Replicated<F>: Serializable,
 {
@@ -111,14 +113,16 @@ where
     C: UpgradableContext,
     C::UpgradedContext<Boolean>: UpgradedContext<Boolean, Share = Replicated<Boolean>>,
     C::UpgradedContext<F>: UpgradedContext<F, Share = Replicated<F>>,
-    BK: SharedValue + CustomArray<Element = Boolean> + Field,
-    TV: SharedValue + CustomArray<Element = Boolean> + Field,
-    TS: SharedValue + CustomArray<Element = Boolean> + Field,
+    BK: SharedValue + CustomArray<Element = Boolean> + ArrayAccess<Output = Boolean> + Field,
+    TV: SharedValue + CustomArray<Element = Boolean> + ArrayAccess<Output = Boolean> + Field,
+    TS: SharedValue + CustomArray<Element = Boolean> + ArrayAccess<Output = Boolean> + Field,
+    /*
     for<'a> &'a Replicated<TS>: IntoIterator<Item = Replicated<Boolean>>,
     for<'a> &'a Replicated<TV>: IntoIterator<Item = Replicated<Boolean>>,
     for<'a> &'a Replicated<BK>: IntoIterator<Item = Replicated<Boolean>>,
     for<'a> <&'a Replicated<TV> as IntoIterator>::IntoIter: Send,
     for<'a> <&'a Replicated<TS> as IntoIterator>::IntoIter: Send,
+    */
     F: PrimeField + ExtendableField,
     Replicated<F>: Serializable,
 {

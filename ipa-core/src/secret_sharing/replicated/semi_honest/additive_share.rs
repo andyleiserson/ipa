@@ -7,7 +7,7 @@ use generic_array::{ArrayLength, GenericArray};
 use typenum::Unsigned;
 
 use crate::{
-    ff::{boolean::Boolean, ArrayAccess, Expand, Field, Gf2, Serializable},
+    ff::{boolean::Boolean, ArrayAccess, Expand, Field, GaloisField, Gf2, Serializable, boolean_array::{BAIterator, BA64}, CustomArray},
     secret_sharing::{
         replicated::ReplicatedSecretSharing, FieldArray, Linear as LinearSecretSharing,
         SecretSharing, SharedValue, SharedValueArray,
@@ -141,6 +141,34 @@ where
             self.0.get(index).unwrap().into(),
             self.1.get(index).unwrap().into(),
         )
+    }
+}
+
+trait Foo {}
+
+impl<T> Foo for T
+where
+    for<'b> &'b T: IntoIterator<Item = AdditiveShare<Boolean>, IntoIter = ASIterator<BAIterator<'b>>>,
+{}
+
+trait Bar: Foo {}
+
+impl Bar for AdditiveShare<BA64> {}
+
+// TODO: there is a test for this in boolean_array, that possibly should be moved here
+// complains that no iter method exists, suppressed warnings
+#[allow(clippy::into_iter_on_ref)]
+impl<'a, T> IntoIterator for &'a AdditiveShare<T>
+where
+    T: SharedValue + ArrayAccess<Output = Boolean>,
+    for<'b> &'b T: IntoIterator<Item = Boolean, IntoIter = BAIterator<'b>>,
+{
+    type Item = AdditiveShare<Boolean>;
+    type IntoIter = ASIterator<BAIterator<'a>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        unimplemented!()
+        //ASIterator::<BAIterator<'a>>(<&'a T as IntoIterator>::into_iter(&self.0), <&'a T as IntoIterator>::into_iter(&self.1))
     }
 }
 
