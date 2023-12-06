@@ -8,8 +8,8 @@ use generic_array::GenericArray;
 use typenum::U1;
 
 use crate::{
-    ff::{Gf2, Serializable},
-    secret_sharing::{SharedValue, SharedValueArray},
+    ff::{Gf2, Serializable, boolean::Boolean},
+    secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{FromPrss, SharedRandomness},
 };
 
 /// An array of values in Gf2.
@@ -40,6 +40,13 @@ impl<const N: usize> SharedValueArray<Gf2> for Gf2Array<N> {
 impl<const N: usize> TryFrom<Vec<Gf2>> for Gf2Array<N> {
     type Error = ();
     fn try_from(value: Vec<Gf2>) -> Result<Self, Self::Error> {
+        todo!()
+    }
+}
+
+impl<const N: usize> TryFrom<Vec<Boolean>> for Gf2Array<N> {
+    type Error = ();
+    fn try_from(value: Vec<Boolean>) -> Result<Self, Self::Error> {
         todo!()
     }
 }
@@ -183,7 +190,7 @@ impl<'a, 'b, const N: usize> Mul<&'b Gf2> for &'a Gf2Array<N> {
         if *rhs != Gf2::ZERO {
             self.clone()
         } else {
-            Gf2Array::ZERO
+            <Gf2Array<N> as SharedValueArray<Gf2>>::ZERO
         }
     }
 }
@@ -209,6 +216,12 @@ impl<const N: usize> Mul<Gf2> for &Gf2Array<N> {
 
     fn mul(self, rhs: Gf2) -> Self::Output {
         Mul::mul(self, &rhs)
+    }
+}
+
+impl<const N: usize> FromPrss for Gf2Array<N> {
+    fn from_prss<P: SharedRandomness + ?Sized, I: Into<u128>>(prss: &P, index: I) -> Self {
+        unimplemented!() // TODO
     }
 }
 

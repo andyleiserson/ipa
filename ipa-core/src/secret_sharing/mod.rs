@@ -26,7 +26,7 @@ use replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing};
 pub use scheme::{Bitwise, Linear, LinearRefOps, SecretSharing};
 
 use crate::{
-    ff::{AddSub, AddSubAssign, Field, Serializable},
+    ff::{AddSub, AddSubAssign, Field, Serializable, Gf2, boolean::Boolean},
     helpers::Message, protocol::prss::FromPrss,
 };
 
@@ -82,7 +82,9 @@ pub trait SharedValue:
 // Writing `impl<F: Field> Vectorized<1> for F` means that the compiler will always see that it
 // is available anywhere an `F: Field` trait bound is effective.
 
-pub trait Vectorized<const N: usize>: SharedValue {
+pub trait Vectorized<const N: usize>: SharedValue + FromPrss {
+    // TODO: Can we eliminate Clone here? (In existing code, `Message`s are generally
+    // `SharedValue`s, which are always Clone.)
     type Message: Message + Clone;
 
     fn as_message(v: &Self::Array<N>) -> &Self::Message;
@@ -90,7 +92,10 @@ pub trait Vectorized<const N: usize>: SharedValue {
     fn from_message(v: Self::Message) -> Self::Array<N>;
 }
 
-impl<F: Field> Vectorized<1> for F {
+impl<F> Vectorized<1> for F
+where
+    F: Field + FromPrss
+{
     type Message = F;
 
     fn as_message(v: &Self::Array<1>) -> &Self::Message {
@@ -104,7 +109,7 @@ impl<F: Field> Vectorized<1> for F {
 
 impl<F> Vectorized<32> for F
 where
-    F: Field,
+    F: Field + FromPrss,
     <F as SharedValue>::Array<32>: Message,
 {
     type Message = F::Array<32>;
@@ -146,7 +151,21 @@ pub trait SharedValueArray<V: SharedValue>:
     fn from_item(item: V) -> Self;
 }
 
-pub trait FieldArray<F: Field, const N: usize>: SharedValueArray<F> + FromPrss {
+impl<T> SharedValueArray<Boolean> for T
+where
+    T: SharedValueArray<Gf2> + TryFrom<Vec<Boolean>, Error = ()>,
+{
+    const ZERO: Self = <Self as SharedValueArray<Gf2>>::ZERO;
+
+    fn capacity() -> usize { <Self as SharedValueArray<Gf2>>::capacity() }
+
+    fn index(&self, index: usize) -> Boolean { <Self as SharedValueArray<Gf2>>::index(self, index).into() }
+
+    fn from_item(item: Boolean) -> Self { <Self as SharedValueArray<Gf2>>::from_item(item.into()) }
+}
+
+// TODO: FromPrss is not correct here, this wants the generic-width equivalent of FromRandomU128
+pub trait FieldArray<F: Field>: SharedValueArray<F> /*+ FromPrss*/ {
     fn mul_scalar(lhs: Self, rhs: F) -> Self {
         todo!()
     }
@@ -156,7 +175,8 @@ pub trait FieldArray<F: Field, const N: usize>: SharedValueArray<F> + FromPrss {
     }
 }
 
-impl<F: Field, A: SharedValueArray<F> + FromPrss, const N: usize> FieldArray<F, N> for A {}
+// TODO: ditto above re: FromPrss
+impl<F: Field, A: SharedValueArray<F>/* + FromPrss*/> FieldArray<F> for A {}
 
 /*
 impl<F: Field, A: SharedValueArray<F, 1>> Serializable for A {

@@ -105,25 +105,25 @@ impl ZeroPositions {
     /// # Panics
     /// When the input value includes a non-zero value in a position marked as having a zero.
     #[cfg_attr(not(debug_assertions), allow(unused_variables))]
-    pub fn check<F: Field>(self, role: Role, which: &str, v: &Replicated<F>) {
+    pub fn check<F: Field, const N: usize>(self, role: Role, which: &str, v: &Replicated<F, N>) {
         #[cfg(debug_assertions)]
         {
             use crate::{
-                helpers::Direction::Right, secret_sharing::replicated::ReplicatedSecretSharing,
+                helpers::Direction::Right, secret_sharing::SharedValueArray,
             };
 
             let flags = <[bool; 3]>::from(self);
             if flags[role as usize] {
                 assert_eq!(
-                    F::ZERO,
-                    v.left(),
+                    &F::Array::ZERO,
+                    v.left_arr(),
                     "expected a zero on the left for input {which}"
                 );
             }
             if flags[role.peer(Right) as usize] {
                 assert_eq!(
-                    F::ZERO,
-                    v.right(),
+                    &F::Array::ZERO,
+                    v.right_arr(),
                     "expected a zero on the right for input {which}"
                 );
             }

@@ -104,12 +104,13 @@ impl BorrowReplicated<Gf2Array<1>> for AdditiveShare<Gf2> {
     }
 }
 
-impl BorrowReplicated<bool> for AdditiveShare<Boolean> {
+/*
+impl BorrowReplicated<Gf2Array<1>> for AdditiveShare<Boolean> {
     fn borrow_left(&self) -> &bool {
         if self.0.into() {
             &true
         } else {
-            &false
+            &Gf2Array::ZERO
         }
     }
 
@@ -117,10 +118,11 @@ impl BorrowReplicated<bool> for AdditiveShare<Boolean> {
         if self.1.into() {
             &true
         } else {
-            &false
+            &Gf2Array::ZERO
         }
     }
 }
+*/
 
 pub trait IndexReplicated<'a, V> {
     type Output: BorrowReplicated<V>;
@@ -136,8 +138,8 @@ where
     type Output = (bool, bool);
     fn index(&'a self, index: usize) -> Self::Output {
         (
-            self.0.get(index).unwrap().into(),
-            self.1.get(index).unwrap().into(),
+            self.0.index(0).get(index).unwrap().into(),
+            self.1.index(0).get(index).unwrap().into(),
         )
     }
 }
@@ -276,8 +278,8 @@ impl<'a, 'b, F: Field, const N: usize> Mul<&'b F> for &'a AdditiveShare<F, N> {
 
     fn mul(self, rhs: &'b F) -> Self::Output {
         AdditiveShare(
-            FieldArray::<F, N>::mul_scalar(self.0.clone(), *rhs),
-            FieldArray::<F, N>::mul_scalar(self.1.clone(), *rhs),
+            FieldArray::<F>::mul_scalar(self.0.clone(), *rhs),
+            FieldArray::<F>::mul_scalar(self.1.clone(), *rhs),
         )
     }
 }
@@ -312,11 +314,15 @@ impl<V: SharedValue> From<(V, V)> for AdditiveShare<V> {
     }
 }
 
+// TODO: vectorize
 impl<V: std::ops::Not<Output = V> + SharedValue> std::ops::Not for AdditiveShare<V> {
     type Output = Self;
 
     fn not(self) -> Self::Output {
-        AdditiveShare(!(self.0), !(self.1))
+        AdditiveShare(
+            V::Array::from_item(!(self.0.index(0))),
+            V::Array::from_item(!(self.1.index(0))),
+        )
     }
 }
 
@@ -350,15 +356,22 @@ where
     type Output = AdditiveShare<<S as ArrayAccess>::Output>;
 
     fn get(&self, index: usize) -> Option<Self::Output> {
+        unimplemented!()
+        /*
         self.0
+            .index(0)
             .get(index)
-            .zip(self.1.get(index))
+            .zip(self.1.index(0).get(index))
             .map(|v| AdditiveShare(v.0, v.1))
+        */
     }
 
     fn set(&mut self, index: usize, e: Self::Output) {
-        self.0.set(index, e.0);
-        self.1.set(index, e.1);
+        unimplemented!();
+        /*
+        self.0.index(0).set(index, e.0);
+        self.1.index(0).set(index, e.1);
+        */
     }
 }
 
@@ -370,7 +383,8 @@ where
     type Input = AdditiveShare<<S as Expand>::Input>;
 
     fn expand(v: &Self::Input) -> Self {
-        AdditiveShare(S::expand(&v.0), S::expand(&v.1))
+        unimplemented!()
+        //AdditiveShare(S::expand(&v.0), S::expand(&v.1))
     }
 }
 
@@ -382,10 +396,13 @@ where
     type Item = AdditiveShare<T::Item>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        unimplemented!();
+        /*
         match (self.0.next(), self.1.next()) {
             (Some(left), Some(right)) => Some(AdditiveShare(left, right)),
             _ => None,
         }
+        */
     }
 }
 

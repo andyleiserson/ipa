@@ -1,7 +1,7 @@
 use crate::{
     error::Error,
     ff::Field,
-    helpers::{Direction, Message},
+    helpers::Direction,
     protocol::{
         basics::{mul::sparse::MultiplyWork, MultiplyZeroPositions},
         context::Context,
@@ -38,45 +38,22 @@ where
     C: Context,
     F: Field,
     F: Vectorized<N>,
+    (F::Array<N>, F::Array<N>): FromPrss,
 {
     let role = ctx.role();
     let [need_to_recv, need_to_send, need_random_right] = zeros.work_for(role);
-    // TODO: Restore this
-    //zeros.0.check(role, "a", a);
-    //zeros.1.check(role, "b", b);
+    zeros.0.check(role, "a", a);
+    zeros.1.check(role, "b", b);
 
     // Shared randomness used to mask the values that are sent.
-    let (s0, s1) = ctx.prss().generate(record_id);
+    let (s0, s1) = ctx.prss().generate::<(F::Array<N>, _), _>(record_id);
 
-    /*
-    let mut s0 = Vec::with_capacity(F::Array::<N>::capacity());
-    let mut s1 = Vec::with_capacity(F::Array::<N>::capacity());
-    let mut r = record_id;
-    for _ in 0..N {
-        // Shared randomness used to mask the values that are sent.
-        let (v0, v1) = ctx.prss().generate_fields(r);
-        s0.push(v0);
-        s1.push(v1);
-        r += 1;
-    }
-    let s0 = F::Array::try_from(s0).unwrap();
-    let s1 = F::Array::try_from(s1).unwrap();
-    */
-    //let s0 = F::Array::from_prss(ctx.prss());
-    //let s1 = F::Array::from_prss(ctx.prss());
-    let mut rhs = F::Array::mul_elements(a.right_arr(), b.right_arr());
+    let mut rhs = F::Array::<N>::mul_elements(a.right_arr(), b.right_arr());
 
     if need_to_send {
         // Compute the value (d_i) we want to send to the right helper (i+1).
-        /*
-        let right_d: [F; N] = array::from_fn(|i| {
-            // Compute the value (d_i) we want to send to the right helper (i+1).
-            //right_d[i].write(multiply_elements(a.left_arr(), b.right_arr()) + multiply_elements(a.right_arr>
-            a.left_arr()[i] * b.right_arr()[i] + a.right_arr()[i] * b.left_arr()[i] - s0[i]
-        });
-        */
-        let right_d = FieldArray::<F, N>::mul_elements(a.left_arr(), b.right_arr())
-            + FieldArray::<F, N>::mul_elements(a.right_arr(), b.left_arr())
+        let right_d = FieldArray::<F>::mul_elements(a.left_arr(), b.right_arr())
+            + FieldArray::<F>::mul_elements(a.right_arr(), b.left_arr())
             - s0.clone(); // TODO clone
 
         ctx.send_channel(role.peer(Direction::Right))
@@ -88,8 +65,8 @@ where
         rhs += right_d;
     } else {
         debug_assert_eq!(
-            FieldArray::<F, N>::mul_elements(a.left_arr(), b.right_arr())
-                + FieldArray::<F, N>::mul_elements(a.right_arr(), b.left_arr()),
+            FieldArray::<F>::mul_elements(a.left_arr(), b.right_arr())
+                + FieldArray::<F>::mul_elements(a.right_arr(), b.left_arr()),
             F::Array::ZERO
         );
     }
@@ -101,7 +78,7 @@ where
     }
 
     // Sleep until helper on the left sends us their (d_i-1) value.
-    let mut lhs = FieldArray::<F, N>::mul_elements(a.left_arr(), b.left_arr());
+    let mut lhs = FieldArray::<F>::mul_elements(a.left_arr(), b.left_arr());
     if need_to_recv {
         let left_d: F::Array<N> = <F as Vectorized<N>>::from_message(
             ctx.recv_channel(role.peer(Direction::Left))

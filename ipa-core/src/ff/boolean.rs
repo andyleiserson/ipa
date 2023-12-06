@@ -14,7 +14,7 @@ impl Block for bool {
 
 ///implements shared value framework for bool
 #[derive(Clone, Copy, PartialEq, Debug, Eq)]
-pub struct Boolean(bool);
+pub struct Boolean(pub(super) bool);
 
 impl ExtendableField for Boolean {
     type ExtendedField = Gf32Bit;

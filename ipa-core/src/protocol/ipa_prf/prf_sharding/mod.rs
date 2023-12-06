@@ -210,6 +210,7 @@ pub struct CappedAttributionOutputs<BK: SharedValue, TV: SharedValue> {
     pub capped_attributed_trigger_value: Replicated<TV>,
 }
 
+/*
 impl<BK, TV> ToBitConversionTriples for CappedAttributionOutputs<BK, TV>
 where
     BK: SharedValue,
@@ -242,6 +243,7 @@ where
         // Self::Residual is ()
     }
 }
+*/
 
 #[derive(Step)]
 pub enum UserNthRowStep {
@@ -460,6 +462,8 @@ where
     let flattenned_stream = seq_join(sh_ctx.active_work(), stream_of_per_user_circuits)
         .flat_map(|x| stream_iter(x.unwrap()));
 
+    unimplemented!()
+    /*
     // modulus convert breakdown keys and trigger values
     let converted_bks_and_tvs = convert_bits(
         prime_field_ctx
@@ -507,6 +511,7 @@ where
             },
         )
         .await
+    */
 }
 
 async fn evaluate_per_user_attribution_circuit<C, BK, TV, TS, SS>(
