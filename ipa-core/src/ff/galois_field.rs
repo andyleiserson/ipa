@@ -10,7 +10,7 @@ use typenum::{Unsigned, U1, U2, U3, U4, U5};
 use super::ArrayAccess;
 use crate::{
     ff::{Field, Serializable},
-    protocol::prss::FromRandomU128,
+    protocol::prss::FromRandom,
     secret_sharing::{Block, SharedValue},
 };
 
@@ -185,9 +185,10 @@ macro_rules! bit_array_impl {
                 }
             }
 
-            impl FromRandomU128 for $name {
-                fn from_random_u128(src: u128) -> Self {
-                    Field::truncate_from(src)
+            impl FromRandom for $name {
+                type Source = [u128; 1];
+                fn from_random(src: [u128; 1]) -> Self {
+                    Field::truncate_from(src[0])
                 }
             }
 

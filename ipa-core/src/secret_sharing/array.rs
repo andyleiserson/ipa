@@ -8,9 +8,9 @@ use generic_array::{ArrayLength, GenericArray};
 use typenum::U32;
 
 use crate::{
-    ff::{Field, Serializable},
+    ff::{Field, Serializable, Fp32BitPrime},
     helpers::Message,
-    secret_sharing::{SharedValue, SharedValueArray},
+    secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{SharedRandomness, FromRandom},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -204,6 +204,23 @@ impl<F: Field, const N: usize> Mul<F> for &StdArray<F, N> {
 
     fn mul(self, rhs: F) -> Self::Output {
         Mul::mul(self, &rhs)
+    }
+}
+
+impl FromRandom for StdArray<Fp32BitPrime, 32> {
+    const N: usize = 8;
+
+    fn from_random(src: [u128; 8]) -> Self {
+        const WORDS_PER_U128: u32 = 4;
+        const WORDS: usize = 32;
+        let shift: u32 = WORDS.next_multiple_of(WORDS_PER_U128 as usize).next_power_of_two().ilog2();
+        let mut res = Vec::with_capacity(WORDS);
+        for word in src {
+            for j in 0..WORDS_PER_U128 {
+                res.push(Fp32BitPrime::truncate_from::<u128>((word >> (j * Fp32BitPrime::BITS)) & u128::from(u32::MAX)));
+            }
+        }
+        res.try_into().unwrap()
     }
 }
 

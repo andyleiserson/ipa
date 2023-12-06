@@ -230,6 +230,7 @@ impl<const WORDS: usize> Mul<Gf2> for &Gf2Array<WORDS> {
 
 const WORDS_PER_U128: u32 = u128::BITS / WORD::BITS;
 
+/*
 impl<const WORDS: usize> FromPrss for Gf2Array<WORDS> {
     fn from_prss<P: SharedRandomness + ?Sized, I: Into<u128>>(prss: &P, index: I) -> Self {
         let shift: u32 = WORDS.next_multiple_of(WORDS_PER_U128 as usize).next_power_of_two().ilog2();
@@ -258,6 +259,7 @@ impl<const WORDS: usize> FromPrss for Gf2Array<WORDS> {
         */
     }
 }
+*/
 
 impl<const WORDS: usize> Serializable for Gf2Array<WORDS> {
     type Size = U1; // TODO

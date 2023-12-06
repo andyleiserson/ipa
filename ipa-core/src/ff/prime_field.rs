@@ -3,7 +3,7 @@ use generic_array::GenericArray;
 use super::Field;
 use crate::{
     ff::Serializable,
-    protocol::prss::FromRandomU128,
+    protocol::prss::FromRandom,
     secret_sharing::{Block, SharedValue},
 };
 
@@ -64,9 +64,9 @@ macro_rules! field_impl {
             }
         }
 
-        impl FromRandomU128 for $field {
-            fn from_random_u128(src: u128) -> Self {
-                Field::truncate_from(src)
+        impl FromRandom for $field {
+            fn from_random(src: [u128; 1]) -> Self {
+                Field::truncate_from(src[0])
             }
         }
 

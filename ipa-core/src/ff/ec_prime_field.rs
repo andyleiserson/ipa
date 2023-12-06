@@ -6,7 +6,7 @@ use typenum::U32;
 
 use crate::{
     ff::{boolean_array::BA256, Field, Serializable},
-    protocol::prss::FromRandomU128,
+    protocol::prss::FromRandom,
     secret_sharing::{Block, SharedValue, StdArray},
 };
 
@@ -190,9 +190,9 @@ impl Field for Fp25519 {
 }
 
 // TODO: remove this impl
-impl FromRandomU128 for Fp25519 {
-    fn from_random_u128(v: u128) -> Self {
-        let hk = Hkdf::<Sha256>::new(None, &v.to_le_bytes());
+impl FromRandom for Fp25519 {
+    fn from_random(v: [u128; 1]) -> Self {
+        let hk = Hkdf::<Sha256>::new(None, &v[0].to_le_bytes());
         let mut okm = [0u8; 32];
         //error invalid length from expand only happens when okm is very large
         hk.expand(&[], &mut okm).unwrap();

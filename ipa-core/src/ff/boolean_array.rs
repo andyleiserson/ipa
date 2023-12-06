@@ -7,7 +7,7 @@ use typenum::{U32, U8};
 
 use crate::{
     ff::{boolean::Boolean, Serializable},
-    protocol::prss::FromRandomU128,
+    protocol::prss::FromRandom,
     secret_sharing::{replicated::ReplicatedSecretSharing, Block, StdArray},
 };
 
@@ -158,9 +158,9 @@ macro_rules! boolean_array_impl {
             }
 
             // TODO: this should only be implemented when bits <= 128
-            impl FromRandomU128 for $name {
-                fn from_random_u128(src: u128) -> Self {
-                    Field::truncate_from(src)
+            impl FromRandom for $name {
+                fn from_random(src: [u128; 1]) -> Self {
+                    Field::truncate_from(src[0])
                 }
             }
 
