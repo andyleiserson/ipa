@@ -1,6 +1,6 @@
 use std::{
     fmt::Debug,
-    ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign},
+    ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign}, array,
 };
 
 use bitvec::prelude::{BitSlice, Lsb0};
@@ -12,18 +12,27 @@ use crate::{
     secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{FromPrss, SharedRandomness},
 };
 
+type WORD = u64;
+
+// Yes, it would be better to calculate this.
+//const WORDS_PER_U128: usize = 4;
+
 /// An array of values in Gf2.
 ///
-/// The const parameter `N` specifies the number of `usize` values used to hold the array, _not_ the
-/// number of elements in the array.
+/// Note that the size of the array is specified as a number of words, not a number of bits. This is
+/// necessary because Rust does not support evaluating expressions involving const generics.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Gf2Array<const N: usize>([usize; N]);
+pub struct Gf2Array<const WORDS: usize>([WORD; WORDS]);
 
-impl<const N: usize> SharedValueArray<Gf2> for Gf2Array<N> {
-    const ZERO: Self = Self([0usize; N]);
+impl<const WORDS: usize> Gf2Array<WORDS> {
+    const WORDS: usize = WORDS;
+}
+
+impl<const WORDS: usize> SharedValueArray<Gf2> for Gf2Array<WORDS> {
+    const ZERO: Self = Self([0; WORDS]);
 
     fn capacity() -> usize {
-        usize::try_from(usize::BITS).unwrap() * N
+        usize::try_from(WORD::BITS).unwrap() * WORDS
     }
 
     fn index(&self, index: usize) -> Gf2 {
@@ -31,30 +40,30 @@ impl<const N: usize> SharedValueArray<Gf2> for Gf2Array<N> {
     }
 
     fn from_item(item: Gf2) -> Self {
-        let mut res = [0; N];
+        let mut res = [0; WORDS];
         BitSlice::<_, Lsb0>::from_slice_mut(&mut res).set(0, item != Gf2::ZERO);
         Gf2Array(res)
     }
 }
 
-impl<const N: usize> TryFrom<Vec<Gf2>> for Gf2Array<N> {
+impl<const WORDS: usize> TryFrom<Vec<Gf2>> for Gf2Array<WORDS> {
     type Error = ();
     fn try_from(value: Vec<Gf2>) -> Result<Self, Self::Error> {
         todo!()
     }
 }
 
-impl<const N: usize> TryFrom<Vec<Boolean>> for Gf2Array<N> {
+impl<const WORDS: usize> TryFrom<Vec<Boolean>> for Gf2Array<WORDS> {
     type Error = ();
     fn try_from(value: Vec<Boolean>) -> Result<Self, Self::Error> {
         todo!()
     }
 }
 
-impl<'a, 'b, const N: usize> Add<&'b Gf2Array<N>> for &'a Gf2Array<N> {
-    type Output = Gf2Array<N>;
+impl<'a, 'b, const WORDS: usize> Add<&'b Gf2Array<WORDS>> for &'a Gf2Array<WORDS> {
+    type Output = Gf2Array<WORDS>;
 
-    fn add(self, rhs: &'b Gf2Array<N>) -> Self::Output {
+    fn add(self, rhs: &'b Gf2Array<WORDS>) -> Self::Output {
         Gf2Array(
             self.0
                 .iter()
@@ -67,7 +76,7 @@ impl<'a, 'b, const N: usize> Add<&'b Gf2Array<N>> for &'a Gf2Array<N> {
     }
 }
 
-impl<const N: usize> Add<Self> for Gf2Array<N> {
+impl<const WORDS: usize> Add<Self> for Gf2Array<WORDS> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -76,15 +85,15 @@ impl<const N: usize> Add<Self> for Gf2Array<N> {
 }
 
 // add(owned, ref) should be preferred over this.
-impl<const N: usize> Add<Gf2Array<N>> for &Gf2Array<N> {
-    type Output = Gf2Array<N>;
+impl<const WORDS: usize> Add<Gf2Array<WORDS>> for &Gf2Array<WORDS> {
+    type Output = Gf2Array<WORDS>;
 
-    fn add(self, rhs: Gf2Array<N>) -> Self::Output {
+    fn add(self, rhs: Gf2Array<WORDS>) -> Self::Output {
         Add::add(self, &rhs)
     }
 }
 
-impl<const N: usize> Add<&Gf2Array<N>> for Gf2Array<N> {
+impl<const WORDS: usize> Add<&Gf2Array<WORDS>> for Gf2Array<WORDS> {
     type Output = Self;
 
     fn add(self, rhs: &Self) -> Self::Output {
@@ -92,7 +101,7 @@ impl<const N: usize> Add<&Gf2Array<N>> for Gf2Array<N> {
     }
 }
 
-impl<const N: usize> AddAssign<&Self> for Gf2Array<N> {
+impl<const WORDS: usize> AddAssign<&Self> for Gf2Array<WORDS> {
     fn add_assign(&mut self, rhs: &Self) {
         for (a, b) in self.0.iter_mut().zip(rhs.0.iter()) {
             *a ^= *b;
@@ -100,14 +109,14 @@ impl<const N: usize> AddAssign<&Self> for Gf2Array<N> {
     }
 }
 
-impl<const N: usize> AddAssign<Self> for Gf2Array<N> {
+impl<const WORDS: usize> AddAssign<Self> for Gf2Array<WORDS> {
     fn add_assign(&mut self, rhs: Self) {
         AddAssign::add_assign(self, &rhs);
     }
 }
 
-impl<const N: usize> Neg for &Gf2Array<N> {
-    type Output = Gf2Array<N>;
+impl<const WORDS: usize> Neg for &Gf2Array<WORDS> {
+    type Output = Gf2Array<WORDS>;
 
     fn neg(self) -> Self::Output {
         Gf2Array(
@@ -121,7 +130,7 @@ impl<const N: usize> Neg for &Gf2Array<N> {
     }
 }
 
-impl<const N: usize> Neg for Gf2Array<N> {
+impl<const WORDS: usize> Neg for Gf2Array<WORDS> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -129,8 +138,8 @@ impl<const N: usize> Neg for Gf2Array<N> {
     }
 }
 
-impl<const N: usize> Sub<Self> for &Gf2Array<N> {
-    type Output = Gf2Array<N>;
+impl<const WORDS: usize> Sub<Self> for &Gf2Array<WORDS> {
+    type Output = Gf2Array<WORDS>;
 
     fn sub(self, rhs: Self) -> Self::Output {
         Gf2Array(
@@ -145,7 +154,7 @@ impl<const N: usize> Sub<Self> for &Gf2Array<N> {
     }
 }
 
-impl<const N: usize> Sub<Self> for Gf2Array<N> {
+impl<const WORDS: usize> Sub<Self> for Gf2Array<WORDS> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -153,7 +162,7 @@ impl<const N: usize> Sub<Self> for Gf2Array<N> {
     }
 }
 
-impl<const N: usize> Sub<&Self> for Gf2Array<N> {
+impl<const WORDS: usize> Sub<&Self> for Gf2Array<WORDS> {
     type Output = Self;
 
     fn sub(self, rhs: &Self) -> Self::Output {
@@ -161,15 +170,15 @@ impl<const N: usize> Sub<&Self> for Gf2Array<N> {
     }
 }
 
-impl<const N: usize> Sub<Gf2Array<N>> for &Gf2Array<N> {
-    type Output = Gf2Array<N>;
+impl<const WORDS: usize> Sub<Gf2Array<WORDS>> for &Gf2Array<WORDS> {
+    type Output = Gf2Array<WORDS>;
 
-    fn sub(self, rhs: Gf2Array<N>) -> Self::Output {
+    fn sub(self, rhs: Gf2Array<WORDS>) -> Self::Output {
         Sub::sub(self, &rhs)
     }
 }
 
-impl<const N: usize> SubAssign<&Self> for Gf2Array<N> {
+impl<const WORDS: usize> SubAssign<&Self> for Gf2Array<WORDS> {
     fn sub_assign(&mut self, rhs: &Self) {
         for (a, b) in self.0.iter_mut().zip(rhs.0.iter()) {
             *a -= *b;
@@ -177,25 +186,25 @@ impl<const N: usize> SubAssign<&Self> for Gf2Array<N> {
     }
 }
 
-impl<const N: usize> SubAssign<Self> for Gf2Array<N> {
+impl<const WORDS: usize> SubAssign<Self> for Gf2Array<WORDS> {
     fn sub_assign(&mut self, rhs: Self) {
         SubAssign::sub_assign(self, &rhs);
     }
 }
 
-impl<'a, 'b, const N: usize> Mul<&'b Gf2> for &'a Gf2Array<N> {
-    type Output = Gf2Array<N>;
+impl<'a, 'b, const WORDS: usize> Mul<&'b Gf2> for &'a Gf2Array<WORDS> {
+    type Output = Gf2Array<WORDS>;
 
     fn mul(self, rhs: &'b Gf2) -> Self::Output {
         if *rhs != Gf2::ZERO {
             self.clone()
         } else {
-            <Gf2Array<N> as SharedValueArray<Gf2>>::ZERO
+            <Gf2Array<WORDS> as SharedValueArray<Gf2>>::ZERO
         }
     }
 }
 
-impl<const N: usize> Mul<Gf2> for Gf2Array<N> {
+impl<const WORDS: usize> Mul<Gf2> for Gf2Array<WORDS> {
     type Output = Self;
 
     fn mul(self, rhs: Gf2) -> Self::Output {
@@ -203,7 +212,7 @@ impl<const N: usize> Mul<Gf2> for Gf2Array<N> {
     }
 }
 
-impl<const N: usize> Mul<&Gf2> for Gf2Array<N> {
+impl<const WORDS: usize> Mul<&Gf2> for Gf2Array<WORDS> {
     type Output = Self;
 
     fn mul(self, rhs: &Gf2) -> Self::Output {
@@ -211,21 +220,46 @@ impl<const N: usize> Mul<&Gf2> for Gf2Array<N> {
     }
 }
 
-impl<const N: usize> Mul<Gf2> for &Gf2Array<N> {
-    type Output = Gf2Array<N>;
+impl<const WORDS: usize> Mul<Gf2> for &Gf2Array<WORDS> {
+    type Output = Gf2Array<WORDS>;
 
     fn mul(self, rhs: Gf2) -> Self::Output {
         Mul::mul(self, &rhs)
     }
 }
 
-impl<const N: usize> FromPrss for Gf2Array<N> {
+const WORDS_PER_U128: u32 = u128::BITS / WORD::BITS;
+
+impl<const WORDS: usize> FromPrss for Gf2Array<WORDS> {
     fn from_prss<P: SharedRandomness + ?Sized, I: Into<u128>>(prss: &P, index: I) -> Self {
-        unimplemented!() // TODO
+        let shift: u32 = WORDS.next_multiple_of(WORDS_PER_U128 as usize).next_power_of_two().ilog2();
+        let mut res = Vec::with_capacity(WORDS);
+        for i in 0..WORDS.div_ceil(WORDS_PER_U128.try_into().unwrap()) {
+            let value = prss.generate::<u128, _>((index.into() << shift) + i.into());
+            for j in 0..WORDS_PER_U128 {
+                //const WORD_BITS: usize = WORD::BITS as usize;
+                res.push((value >> (j * WORD::BITS)) & WORD::MAX.into());
+            }
+        }
+        res.try_into().unwrap()
+        /*
+        let shift: u32 = WORDS.next_multiple_of(WORDS_PER_U128 as usize).next_power_of_two().ilog2();
+        const PRSS_WORDS: usize = (WORDS_PER_U128 - 1) / WORDS_PER_U128;
+        let index = index.into();
+        Self(array::from_fn(|i| prss.generate((index << shift) + i.into()))
+            .into_iter()
+            .flat_map(|value: [u128; PRSS_WORDS]| {
+                const WORD_BITS: usize = WORD::BITS as usize;
+                array::from_fn(|j| (value >> (j * WORD_BITS)) & WORD::MAX)
+            })
+            .collect::<Vec<_>>()
+            .try_into::<[WORD; WORDS]>()
+            .unwrap())
+        */
     }
 }
 
-impl<const N: usize> Serializable for Gf2Array<N> {
+impl<const WORDS: usize> Serializable for Gf2Array<WORDS> {
     type Size = U1; // TODO
 
     fn serialize(&self, buf: &mut GenericArray<u8, Self::Size>) {
