@@ -5,12 +5,12 @@ use crate::{
     ff::Field,
     protocol::{
         context::{Context, UpgradedMaliciousContext},
-        RecordId,
+        RecordId, prss::FromPrss,
     },
-    secret_sharing::replicated::{
+    secret_sharing::{replicated::{
         malicious::{AdditiveShare as MaliciousReplicated, ExtendableField},
         semi_honest::AdditiveShare as Replicated,
-    },
+    }, Vectorized},
 };
 
 pub(crate) mod malicious;
@@ -52,7 +52,12 @@ use {malicious::multiply as malicious_mul, semi_honest::multiply as semi_honest_
 
 /// Implement secure multiplication for semi-honest contexts with replicated secret sharing.
 #[async_trait]
-impl<C: Context, F: Field> SecureMul<C> for Replicated<F> {
+impl<C, F> SecureMul<C> for Replicated<F>
+where
+    C: Context,
+    F: Field,
+    (F::Array<1>, F::Array<1>): FromPrss,
+{
     async fn multiply_sparse<'fut>(
         &self,
         rhs: &Self,

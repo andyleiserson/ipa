@@ -22,6 +22,8 @@ use crate::{
 pub trait FromRandom {
     type Source;
 
+    fn len() -> usize;
+
     /// Generate a random value of `Self` from a uniformly-distributed random u128.
     fn from_random(src: Self::Source) -> Self;
 }
@@ -52,12 +54,15 @@ pub trait FromPrss: Sized {
 
 /// Generate two random values, one that is known to the left helper
 /// and one that is known to the right helper.
-impl<T: FromRandom<Source = [u128; N]>, const N: usize> FromPrss for (T, T) {
+impl<T: FromRandom<Source = [u128; N]>, const N: usize> FromPrss for (T, T)
+where
+    [u128; N]: Default,
+{
     fn from_prss<P: SharedRandomness + ?Sized, I: Into<u128>>(prss: &P, index: I) -> (T, T) {
-        let (l, r) = (0..<T as FromRandom>::N.try_into().unwrap())
-            .map(|i| prss.generate_values::<u128>(index.into() * u128::try_from(<T as FromRandom>::N).unwrap() + i))
+        let (l, r): (Vec<_>, Vec<_>) = (0..<T as FromRandom>::len().try_into().unwrap())
+            .map(|i| prss.generate_values::<u128>(index.into() * u128::try_from(<T as FromRandom>::len()).unwrap() + i))
             .unzip();
-        (T::from_random(l), T::from_random(r))
+        (T::from_random(l.try_into().unwrap()), T::from_random(r.try_into().unwrap()))
     }
 }
 
@@ -109,7 +114,7 @@ pub trait SharedRandomness {
     // Equivalent functionality could be obtained by defining an `Unreplicated<F>` type that
     // implements `FromPrss`.
     #[must_use]
-    fn zero<V: SharedValue + FromRandom, I: Into<u128>>(&self, index: I) -> V {
+    fn zero<V: SharedValue + FromRandom<Source = [u128; 1]>, I: Into<u128>>(&self, index: I) -> V {
         let (l, r): (V, V) = self.generate(index);
         l - r
     }

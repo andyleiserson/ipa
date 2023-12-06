@@ -208,7 +208,9 @@ impl<F: Field, const N: usize> Mul<F> for &StdArray<F, N> {
 }
 
 impl FromRandom for StdArray<Fp32BitPrime, 32> {
-    const N: usize = 8;
+    type Source = [u128; 8];
+
+    fn len() -> usize { 8 }
 
     fn from_random(src: [u128; 8]) -> Self {
         const WORDS_PER_U128: u32 = 4;

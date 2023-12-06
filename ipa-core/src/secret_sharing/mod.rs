@@ -82,7 +82,7 @@ pub trait SharedValue:
 // Writing `impl<F: Field> Vectorized<1> for F` means that the compiler will always see that it
 // is available anywhere an `F: Field` trait bound is effective.
 
-pub trait Vectorized<const N: usize>: SharedValue + FromPrss {
+pub trait Vectorized<const N: usize>: SharedValue /* + FromPrss*/ {
     // TODO: Can we eliminate Clone here? (In existing code, `Message`s are generally
     // `SharedValue`s, which are always Clone.)
     type Message: Message + Clone;
@@ -94,7 +94,7 @@ pub trait Vectorized<const N: usize>: SharedValue + FromPrss {
 
 impl<F> Vectorized<1> for F
 where
-    F: Field + FromPrss
+    F: Field /*+ FromPrss*/
 {
     type Message = F;
 

@@ -187,6 +187,7 @@ macro_rules! bit_array_impl {
 
             impl FromRandom for $name {
                 type Source = [u128; 1];
+                fn len() -> usize { 1 }
                 fn from_random(src: [u128; 1]) -> Self {
                     Field::truncate_from(src[0])
                 }

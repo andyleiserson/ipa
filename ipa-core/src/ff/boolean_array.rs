@@ -159,6 +159,8 @@ macro_rules! boolean_array_impl {
 
             // TODO: this should only be implemented when bits <= 128
             impl FromRandom for $name {
+                type Source = [u128; 1];
+                fn len() -> usize { 1 }
                 fn from_random(src: [u128; 1]) -> Self {
                     Field::truncate_from(src[0])
                 }

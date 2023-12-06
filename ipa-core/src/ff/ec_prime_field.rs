@@ -191,6 +191,8 @@ impl Field for Fp25519 {
 
 // TODO: remove this impl
 impl FromRandom for Fp25519 {
+    type Source = [u128; 1];
+    fn len() -> usize { 1 }
     fn from_random(v: [u128; 1]) -> Self {
         let hk = Hkdf::<Sha256>::new(None, &v[0].to_le_bytes());
         let mut okm = [0u8; 32];

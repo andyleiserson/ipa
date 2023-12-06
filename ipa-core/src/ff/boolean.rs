@@ -162,6 +162,7 @@ impl TryFrom<u128> for Boolean {
 
 impl FromRandom for Boolean {
     type Source = [u128; 1];
+    fn len() -> usize { 1 }
     fn from_random(src: [u128; 1]) -> Self {
         Field::truncate_from(src[0])
     }

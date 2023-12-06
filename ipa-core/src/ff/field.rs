@@ -26,7 +26,7 @@ pub trait Field:
     SharedValue
     + Mul<Self, Output = Self>
     + MulAssign<Self>
-    + FromRandom
+    + FromRandom<Source = [u128; 1]>
     + TryFrom<u128, Error = error::Error>
     + Into<Self::Storage>
 {
