@@ -78,7 +78,7 @@ pub trait ArrayFromRandom<const N: usize>: SharedValue {
     // TODO: why are Clone + Send + Sync necessary here?
     // Clone, in particular, was wanted by the compiler, but it seems like it should be available from SharedValueArray?
     // Ditto SharedValueArray. seems like the compiler does not traverse all paths when the associated types are constrained.
-    type T: SharedValueArray<Self> + FromRandom + Clone + Send + Sync;
+    type T: SharedValueArray<Self> + Message + FromRandom + Clone + Send + Sync;
 }
 
 /*

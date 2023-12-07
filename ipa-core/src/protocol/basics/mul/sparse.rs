@@ -1,5 +1,5 @@
 use crate::{
-    ff::Field, helpers::Role, secret_sharing::{replicated::semi_honest::AdditiveShare as Replicated, Vectorized},
+    ff::Field, helpers::Role, secret_sharing::{replicated::semi_honest::AdditiveShare as Replicated, Vectorized, SharedValue},
 };
 
 /// A description of a replicated secret sharing, with zero values at known positions.
@@ -115,14 +115,14 @@ impl ZeroPositions {
             let flags = <[bool; 3]>::from(self);
             if flags[role as usize] {
                 assert_eq!(
-                    &F::Array::<N>::ZERO,
+                    &<F as SharedValue>::Array::<N>::ZERO,
                     v.left_arr(),
                     "expected a zero on the left for input {which}"
                 );
             }
             if flags[role.peer(Right) as usize] {
                 assert_eq!(
-                    &F::Array::<N>::ZERO,
+                    &<F as SharedValue>::Array::<N>::ZERO,
                     v.right_arr(),
                     "expected a zero on the right for input {which}"
                 );

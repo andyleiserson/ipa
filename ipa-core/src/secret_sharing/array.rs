@@ -14,7 +14,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct StdArray<V, const N: usize>([V; N]);
+pub struct StdArray<V: SharedValue, const N: usize>([V; N]);
 
 // Introducing the `Eq` bound here is a wart. For some reason AdditiveShare is `Eq`, but
 // `SharedValue` is not. Probably all of these should be Eq, or none of them.
@@ -213,7 +213,7 @@ impl<V: SharedValue> ArrayFromRandom<N> for StdArray<V, 1> {
 }
 */
 
-impl<F: FromRandom<Source = [u128; 1]>> FromRandom for StdArray<F, 1> {
+impl<F: SharedValue + FromRandom<Source = [u128; 1]>> FromRandom for StdArray<F, 1> {
     type Source = [u128; 1];
     fn len() -> usize { 1 }
     fn from_random(src: Self::Source) -> Self {

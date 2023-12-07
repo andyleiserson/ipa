@@ -9,7 +9,7 @@ use typenum::U1;
 
 use crate::{
     ff::{Gf2, Serializable, boolean::Boolean, Field},
-    secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{FromPrss, SharedRandomness, FromRandom},
+    secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{FromPrss, SharedRandomness, FromRandom}, helpers::Message,
 };
 
 type WORD = u64;
@@ -280,3 +280,5 @@ impl<const WORDS: usize> Serializable for Gf2Array<WORDS> {
         todo!()
     }
 }
+
+impl<const WORDS: usize> Message for Gf2Array<WORDS> { }
