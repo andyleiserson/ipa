@@ -105,7 +105,13 @@ pub trait Vectorized<const N: usize>: SharedValue /* + FromPrss*/ {
     fn from_message(v: Self::Message) -> Self::Array<N>;
 }
 
-pub trait FieldVectorized<const N: usize>: Field + Vectorized<N> + SharedValue<Array<N> = <Self as ArrayFromRandom<N>>::T> + ArrayFromRandom<N> { }
+pub trait FieldVectorized<const N: usize>:
+    Field
+    + Vectorized<N>
+    + SharedValue<Array<N> = <Self as ArrayFromRandom<N>>::T>
+    + ArrayFromRandom<N>
+{
+}
 
 impl<F: Field> FieldVectorized<1> for F { }
 
