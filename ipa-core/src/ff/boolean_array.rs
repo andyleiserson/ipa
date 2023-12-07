@@ -132,8 +132,8 @@ macro_rules! boolean_array_impl {
                 }
             }
 
-            impl<const N: usize> ArrayFromRandom<N> for $name {
-                type T = <Self as SharedValue>::Array<N>;
+            impl ArrayFromRandom<1> for $name {
+                type T = <Self as SharedValue>::Array<1>;
             }
 
             impl Field for $name {

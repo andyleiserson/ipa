@@ -173,8 +173,8 @@ macro_rules! sc_hash_impl {
 #[cfg(test)]
 sc_hash_impl!(u64);
 
-impl<const N: usize> ArrayFromRandom<N> for Fp25519 {
-    type T = <Self as SharedValue>::Array<N>;
+impl ArrayFromRandom<1> for Fp25519 {
+    type T = <Self as SharedValue>::Array<1>;
 }
 
 ///implement Field because required by PRSS

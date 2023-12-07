@@ -44,8 +44,8 @@ macro_rules! field_impl {
             const ZERO: Self = $field(0);
         }
 
-        impl<const N: usize> ArrayFromRandom<N> for $field {
-            type T = <Self as SharedValue>::Array<N>;
+        impl ArrayFromRandom<1> for $field {
+            type T = <Self as SharedValue>::Array<1>;
         }
 
         impl Field for $field {

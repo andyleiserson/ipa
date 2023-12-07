@@ -207,8 +207,18 @@ impl<F: Field, const N: usize> Mul<F> for &StdArray<F, N> {
     }
 }
 
-impl<V: SharedValue, const N: usize> ArrayFromRandom<N> for StdArray<V, N> {
+/*
+impl<V: SharedValue> ArrayFromRandom<N> for StdArray<V, 1> {
     type T = Self;
+}
+*/
+
+impl<F: FromRandom<Source = [u128; 1]>> FromRandom for StdArray<F, 1> {
+    type Source = [u128; 1];
+    fn len() -> usize { 1 }
+    fn from_random(src: Self::Source) -> Self {
+        Self([F::from_random(src)])
+    }
 }
 
 impl FromRandom for StdArray<Fp32BitPrime, 32> {

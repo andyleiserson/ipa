@@ -10,7 +10,7 @@ use crate::{
     },
     secret_sharing::{
         replicated::semi_honest::AdditiveShare as Replicated, FieldArray, SharedValueArray,
-        Vectorized,
+        Vectorized, FieldVectorized,
     },
 };
 
@@ -36,7 +36,7 @@ pub async fn multiply<C, F, const N: usize>(
 ) -> Result<Replicated<F, N>, Error>
 where
     C: Context,
-    F: Field + Vectorized<N>,
+    F: Field + FieldVectorized<N>,
 {
     let role = ctx.role();
     let [need_to_recv, need_to_send, need_random_right] = zeros.work_for(role);
@@ -57,7 +57,7 @@ where
         ctx.send_channel(role.peer(Direction::Right))
             .send(
                 record_id,
-                <F as Vectorized<N>>::as_message(&right_d).clone(),
+                <F as FieldVectorized<N>>::as_message(&right_d).clone(),
             ) // TODO clone
             .await?;
         rhs += right_d;
@@ -78,7 +78,7 @@ where
     // Sleep until helper on the left sends us their (d_i-1) value.
     let mut lhs = FieldArray::<F>::mul_elements(a.left_arr(), b.left_arr());
     if need_to_recv {
-        let left_d: F::Array<N> = <F as Vectorized<N>>::from_message(
+        let left_d: F::Array<N> = <F as FieldVectorized<N>>::from_message(
             ctx.recv_channel(role.peer(Direction::Left))
                 .receive(record_id)
                 .await?,

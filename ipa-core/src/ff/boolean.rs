@@ -31,8 +31,8 @@ impl SharedValue for Boolean {
     const ZERO: Self = Self(false);
 }
 
-impl<const N: usize> ArrayFromRandom<N> for Boolean {
-    type T = <Self as SharedValue>::Array<N>;
+impl ArrayFromRandom<1> for Boolean {
+    type T = <Self as SharedValue>::Array<1>;
 }
 
 ///conversion to Scalar struct of `curve25519_dalek`

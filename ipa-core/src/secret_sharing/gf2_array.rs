@@ -9,7 +9,7 @@ use typenum::U1;
 
 use crate::{
     ff::{Gf2, Serializable, boolean::Boolean},
-    secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{FromPrss, SharedRandomness},
+    secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{FromPrss, SharedRandomness, FromRandom},
 };
 
 type WORD = u64;
@@ -225,6 +225,14 @@ impl<const WORDS: usize> Mul<Gf2> for &Gf2Array<WORDS> {
 
     fn mul(self, rhs: Gf2) -> Self::Output {
         Mul::mul(self, &rhs)
+    }
+}
+
+impl FromRandom for Gf2Array<1> {
+    type Source = [u128; 1];
+    fn len() -> usize { 1 }
+    fn from_random(src: Self::Source) -> Self {
+        Self([Gf2::from_random(src)])
     }
 }
 

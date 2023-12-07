@@ -154,8 +154,8 @@ macro_rules! bit_array_impl {
                 const ZERO: Self = Self(<$store>::ZERO);
             }
 
-            impl<const N: usize> ArrayFromRandom<N> for $name {
-                type T = <Self as SharedValue>::Array<N>;
+            impl ArrayFromRandom<1> for $name {
+                type T = <Self as SharedValue>::Array<1>;
             }
 
             impl Field for $name {
