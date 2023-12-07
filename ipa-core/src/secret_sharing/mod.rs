@@ -74,10 +74,11 @@ pub trait SharedValue:
     const ZERO: Self;
 }
 
-pub trait ArrayFromRandom<const N: usize> {
+pub trait ArrayFromRandom<const N: usize>: SharedValue {
     // TODO: why are Clone + Send + Sync necessary here?
     // Clone, in particular, was wanted by the compiler, but it seems like it should be available from SharedValueArray?
-    type T: FromRandom + Clone + Send + Sync;
+    // Ditto SharedValueArray. seems like the compiler does not traverse all paths when the associated types are constrained.
+    type T: SharedValueArray<Self> + FromRandom + Clone + Send + Sync;
 }
 
 /*
@@ -104,23 +105,9 @@ pub trait Vectorized<const N: usize>: SharedValue /* + FromPrss*/ {
     fn from_message(v: Self::Message) -> Self::Array<N>;
 }
 
-pub trait FieldVectorized<const N: usize>: Field + SharedValue<Array<N> = <Self as ArrayFromRandom<N>>::T> + ArrayFromRandom<N> {
-}
+pub trait FieldVectorized<const N: usize>: Field + Vectorized<N> + SharedValue<Array<N> = <Self as ArrayFromRandom<N>>::T> + ArrayFromRandom<N> { }
 
-/*
-impl<F, const N: usize> ArrayFromRandom<N> for F
-where
-    F: Field,
-{
-    type T = <F as SharedValue>::Array<N>;
-}
-*/
-
-impl<F> FieldVectorized<1> for F
-where
-    F: Field /*+ FromPrss*/
-{
-}
+impl<F: Field> FieldVectorized<1> for F { }
 
 impl<F> Vectorized<1> for F
 where

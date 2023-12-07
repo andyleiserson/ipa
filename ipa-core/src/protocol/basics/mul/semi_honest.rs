@@ -10,7 +10,7 @@ use crate::{
     },
     secret_sharing::{
         replicated::semi_honest::AdditiveShare as Replicated, FieldArray, SharedValueArray,
-        Vectorized, FieldVectorized,
+        Vectorized, FieldVectorized, SharedValue,
     },
 };
 
@@ -57,7 +57,7 @@ where
         ctx.send_channel(role.peer(Direction::Right))
             .send(
                 record_id,
-                <F as FieldVectorized<N>>::as_message(&right_d).clone(),
+                <F as Vectorized<N>>::as_message(&right_d).clone(),
             ) // TODO clone
             .await?;
         rhs += right_d;
@@ -65,7 +65,7 @@ where
         debug_assert_eq!(
             FieldArray::<F>::mul_elements(a.left_arr(), b.right_arr())
                 + FieldArray::<F>::mul_elements(a.right_arr(), b.left_arr()),
-            F::Array::ZERO
+            <F::Array<N> as SharedValueArray<F>>::ZERO
         );
     }
     // Add randomness to this value whether we sent or not, depending on whether the
@@ -78,7 +78,7 @@ where
     // Sleep until helper on the left sends us their (d_i-1) value.
     let mut lhs = FieldArray::<F>::mul_elements(a.left_arr(), b.left_arr());
     if need_to_recv {
-        let left_d: F::Array<N> = <F as FieldVectorized<N>>::from_message(
+        let left_d: F::Array<N> = <F as Vectorized<N>>::from_message(
             ctx.recv_channel(role.peer(Direction::Left))
                 .receive(record_id)
                 .await?,

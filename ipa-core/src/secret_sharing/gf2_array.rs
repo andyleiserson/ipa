@@ -8,7 +8,7 @@ use generic_array::GenericArray;
 use typenum::U1;
 
 use crate::{
-    ff::{Gf2, Serializable, boolean::Boolean},
+    ff::{Gf2, Serializable, boolean::Boolean, Field},
     secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{FromPrss, SharedRandomness, FromRandom},
 };
 
@@ -232,7 +232,7 @@ impl FromRandom for Gf2Array<1> {
     type Source = [u128; 1];
     fn len() -> usize { 1 }
     fn from_random(src: Self::Source) -> Self {
-        Self([Gf2::from_random(src)])
+        Self([Gf2::from_random(src).as_u128().try_into().unwrap()])
     }
 }
 
