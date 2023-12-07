@@ -1,6 +1,7 @@
 use bitvec::{
-    prelude::{bitarr, BitArr, Lsb0},
-    slice::Iter,
+    array::BitArray,
+    prelude::{bitarr, BitArr, BitStore, Lsb0},
+    slice::Iter, view::BitViewSized,
 };
 use generic_array::GenericArray;
 use typenum::{U32, U8};
@@ -33,12 +34,30 @@ pub struct BAIterator<'a> {
     iterator: std::iter::Take<Iter<'a, u8, Lsb0>>,
 }
 
+/// iterator for Boolean arrays
+pub struct BAOwnedIterator<I> {
+    iterator: std::iter::Take<I>,
+}
+
 ///impl Iterator for all Boolean arrays
 impl<'a> Iterator for BAIterator<'a> {
     type Item = Boolean;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iterator.next().map(|v| Boolean::from(*v))
+    }
+}
+
+///impl Iterator for all Boolean arrays
+impl<I> Iterator for BAOwnedIterator<I>
+where
+    I: Iterator,
+    <I as Iterator>::Item: Into<Boolean>,
+{
+    type Item = Boolean;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.next().map(Into::into)
     }
 }
 
@@ -57,7 +76,7 @@ macro_rules! boolean_array_impl {
                 },
             };
 
-    type Store = BitArr!(for $bits, in u8, Lsb0);
+            type Store = BitArr!(for $bits, in u8, Lsb0);
 
             ///
             #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -236,6 +255,19 @@ macro_rules! boolean_array_impl {
 
             // complains that no iter method exists, suppressed warnings
             #[allow(clippy::into_iter_on_ref)]
+            impl IntoIterator for $name {
+                type Item = Boolean;
+                type IntoIter = BAOwnedIterator<<Store as IntoIterator>::IntoIter>;
+
+                fn into_iter(self) -> Self::IntoIter {
+                    BAOwnedIterator {
+                        iterator: self.0.into_iter().take(usize::try_from(<$name>::BITS).unwrap()),
+                    }
+                }
+            }
+
+            // complains that no iter method exists, suppressed warnings
+            #[allow(clippy::into_iter_on_ref)]
             impl<'a> IntoIterator for &'a $name {
                 type Item = Boolean;
                 type IntoIter = BAIterator<'a>;
@@ -251,10 +283,10 @@ macro_rules! boolean_array_impl {
             #[allow(clippy::into_iter_on_ref)]
             impl<'a> IntoIterator for &'a AdditiveShare<$name> {
                 type Item = AdditiveShare<Boolean>;
-                type IntoIter = ASIterator<BAIterator<'a>>;
+                type IntoIter = ASIterator<BAOwnedIterator<<Store as IntoIterator>::IntoIter>>;
 
                 fn into_iter(self) -> Self::IntoIter {
-                    ASIterator::<BAIterator<'a>>(self.left().into_iter(), self.right().into_iter())
+                    ASIterator::<BAOwnedIterator<<Store as IntoIterator>::IntoIter>>(self.left().into_iter(), self.right().into_iter())
                 }
             }
 
