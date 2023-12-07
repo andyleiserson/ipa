@@ -25,9 +25,6 @@ impl Block for CompressedRistretto {
 /// since we always generate curve points from scalars (elements in Fp25519) and
 /// only deserialize previously serialized valid points, panics will not occur
 /// However, we still added a debug assert to deserialize since values are sent by other servers
-// TODO: resolve whether this should be Eq. `CompressedRistretto` is Eq, so maybe it's fine for this
-// to be Eq as well.  If this is not Eq, that means that SharedValue cannot be Eq, which is a
-// problem for some tests that rely on SharedValues being Eq.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct RP25519(CompressedRistretto);
 

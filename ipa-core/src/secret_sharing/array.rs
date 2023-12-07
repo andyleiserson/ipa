@@ -16,9 +16,7 @@ use crate::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StdArray<V: SharedValue, const N: usize>([V; N]);
 
-// Introducing the `Eq` bound here is a wart. For some reason AdditiveShare is `Eq`, but
-// `SharedValue` is not. Probably all of these should be Eq, or none of them.
-impl<V: SharedValue + Eq, const N: usize> SharedValueArray<V> for StdArray<V, N> {
+impl<V: SharedValue, const N: usize> SharedValueArray<V> for StdArray<V, N> {
     const ZERO: Self = Self([V::ZERO; N]);
 
     fn capacity() -> usize {
