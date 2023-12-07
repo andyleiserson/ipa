@@ -11,7 +11,7 @@ use super::ArrayAccess;
 use crate::{
     ff::{Field, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{Block, SharedValue},
+    secret_sharing::{ArrayFromRandom, Block, SharedValue},
 };
 
 /// Trait for data types storing arbitrary number of bits.
@@ -152,6 +152,10 @@ macro_rules! bit_array_impl {
                 type Array<const N: usize> = $array;
                 const BITS: u32 = $bits;
                 const ZERO: Self = Self(<$store>::ZERO);
+            }
+
+            impl<const N: usize> ArrayFromRandom<N> for $name {
+                type T = <Self as SharedValue>::Array<N>;
             }
 
             impl Field for $name {

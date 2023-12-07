@@ -5,7 +5,7 @@ use super::Gf32Bit;
 use crate::{
     ff::{Field, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{replicated::malicious::ExtendableField, Block, SharedValue, Gf2Array},
+    secret_sharing::{replicated::malicious::ExtendableField, Block, SharedValue, Gf2Array, ArrayFromRandom},
 };
 
 impl Block for bool {
@@ -29,6 +29,10 @@ impl SharedValue for Boolean {
     type Array<const N: usize> = Gf2Array<N>;
     const BITS: u32 = 1;
     const ZERO: Self = Self(false);
+}
+
+impl<const N: usize> ArrayFromRandom<N> for Boolean {
+    type T = <Self as SharedValue>::Array<N>;
 }
 
 ///conversion to Scalar struct of `curve25519_dalek`

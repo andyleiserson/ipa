@@ -55,8 +55,7 @@ use {malicious::multiply as malicious_mul, semi_honest::multiply as semi_honest_
 impl<C, F> SecureMul<C> for Replicated<F>
 where
     C: Context,
-    F: Field,
-    (F::Array<1>, F::Array<1>): FromPrss,
+    F: Field + Vectorized<1>,
 {
     async fn multiply_sparse<'fut>(
         &self,

@@ -8,7 +8,7 @@ use typenum::{U1, U4};
 use crate::{
     error,
     protocol::prss::FromRandom,
-    secret_sharing::{Block, SharedValue},
+    secret_sharing::{Block, SharedValue, ArrayFromRandom},
 };
 
 impl Block for u8 {
@@ -23,12 +23,13 @@ impl Block for u32 {
 ///
 /// Basic functionality (Clone, Eq, Debug) and an addition operation are inherited from `SharedValue`.
 pub trait Field:
-    SharedValue
+    SharedValue<Array<1> = <Self as ArrayFromRandom<1>>::T>
     + Mul<Self, Output = Self>
     + MulAssign<Self>
     + FromRandom<Source = [u128; 1]>
     + TryFrom<u128, Error = error::Error>
     + Into<Self::Storage>
+    + ArrayFromRandom<1>
 {
     /// Multiplicative identity element
     const ONE: Self;

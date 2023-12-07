@@ -8,7 +8,7 @@ use typenum::{U32, U8};
 use crate::{
     ff::{boolean::Boolean, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{replicated::ReplicatedSecretSharing, Block, StdArray},
+    secret_sharing::{replicated::ReplicatedSecretSharing, ArrayFromRandom, Block, StdArray},
 };
 
 /// The implementation below cannot be constrained without breaking Rust's
@@ -130,6 +130,10 @@ macro_rules! boolean_array_impl {
                 fn neg(self) -> Self::Output {
                     Self(self.0)
                 }
+            }
+
+            impl<const N: usize> ArrayFromRandom<N> for $name {
+                type T = <Self as SharedValue>::Array<N>;
             }
 
             impl Field for $name {

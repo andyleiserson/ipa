@@ -10,7 +10,7 @@ use typenum::U32;
 use crate::{
     ff::{Field, Serializable, Fp32BitPrime},
     helpers::Message,
-    secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{SharedRandomness, FromRandom},
+    secret_sharing::{SharedValue, SharedValueArray, ArrayFromRandom}, protocol::prss::{SharedRandomness, FromRandom},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -205,6 +205,10 @@ impl<F: Field, const N: usize> Mul<F> for &StdArray<F, N> {
     fn mul(self, rhs: F) -> Self::Output {
         Mul::mul(self, &rhs)
     }
+}
+
+impl<V: SharedValue, const N: usize> ArrayFromRandom<N> for StdArray<V, N> {
+    type T = Self;
 }
 
 impl FromRandom for StdArray<Fp32BitPrime, 32> {

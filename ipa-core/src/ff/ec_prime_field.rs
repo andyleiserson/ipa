@@ -7,7 +7,7 @@ use typenum::U32;
 use crate::{
     ff::{boolean_array::BA256, Field, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{Block, SharedValue, StdArray},
+    secret_sharing::{Block, SharedValue, StdArray, ArrayFromRandom},
 };
 
 impl Block for Scalar {
@@ -172,6 +172,10 @@ macro_rules! sc_hash_impl {
 
 #[cfg(test)]
 sc_hash_impl!(u64);
+
+impl<const N: usize> ArrayFromRandom<N> for Fp25519 {
+    type T = <Self as SharedValue>::Array<N>;
+}
 
 ///implement Field because required by PRSS
 impl Field for Fp25519 {

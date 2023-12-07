@@ -4,7 +4,7 @@ use super::Field;
 use crate::{
     ff::Serializable,
     protocol::prss::FromRandom,
-    secret_sharing::{Block, SharedValue},
+    secret_sharing::{ArrayFromRandom, Block, SharedValue},
 };
 
 pub trait PrimeField: Field {
@@ -42,6 +42,10 @@ macro_rules! field_impl {
             type Array<const N: usize> = crate::secret_sharing::StdArray<$field, N>;
             const BITS: u32 = $bits;
             const ZERO: Self = $field(0);
+        }
+
+        impl<const N: usize> ArrayFromRandom<N> for $field {
+            type T = <Self as SharedValue>::Array<N>;
         }
 
         impl Field for $field {

@@ -27,7 +27,7 @@ pub use scheme::{Bitwise, Linear, LinearRefOps, SecretSharing};
 
 use crate::{
     ff::{AddSub, AddSubAssign, Field, Serializable, Gf2, boolean::Boolean},
-    helpers::Message, protocol::prss::FromPrss,
+    helpers::Message, protocol::prss::{FromPrss, FromRandom},
 };
 
 /// Operations supported for weak shared values.
@@ -74,6 +74,18 @@ pub trait SharedValue:
     const ZERO: Self;
 }
 
+pub trait ArrayFromRandom<const N: usize> {
+    // TODO: why are Clone + Send + Sync necessary here?
+    // Clone, in particular, was wanted by the compiler, but it seems like it should be available from SharedValueArray?
+    type T: FromRandom + Clone + Send + Sync;
+}
+
+/*
+impl<V: SharedValue, const N: usize> ArrayFromRandom<N> for V {
+    type T = ();
+}
+*/
+
 // The purpose of this trait is to avoid placing a `Message` trait bound on `SharedValueArray`, or
 // similar. Doing so would require either (1) a generic impl of `Serializable` for any `N`, which
 // is hard to write, or (2) additional trait bounds of something like `F::Array<1>: Message`
@@ -90,6 +102,24 @@ pub trait Vectorized<const N: usize>: SharedValue /* + FromPrss*/ {
     fn as_message(v: &Self::Array<N>) -> &Self::Message;
 
     fn from_message(v: Self::Message) -> Self::Array<N>;
+}
+
+pub trait FieldVectorized<const N: usize>: Field + SharedValue<Array<N> = <Self as ArrayFromRandom<N>>::T> + ArrayFromRandom<N> {
+}
+
+/*
+impl<F, const N: usize> ArrayFromRandom<N> for F
+where
+    F: Field,
+{
+    type T = <F as SharedValue>::Array<N>;
+}
+*/
+
+impl<F> FieldVectorized<1> for F
+where
+    F: Field /*+ FromPrss*/
+{
 }
 
 impl<F> Vectorized<1> for F
