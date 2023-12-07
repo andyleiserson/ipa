@@ -98,7 +98,7 @@ impl<V: SharedValue, const N: usize> ArrayFromRandom<N> for V {
 pub trait Vectorized<const N: usize>: SharedValue /* + FromPrss*/ {
     // TODO: Can we eliminate Clone here? (In existing code, `Message`s are generally
     // `SharedValue`s, which are always Clone.)
-    type Message: Message + Clone;
+    type Message: Message + Clone + Send + Sync;
 
     fn as_message(v: &Self::Array<N>) -> &Self::Message;
 

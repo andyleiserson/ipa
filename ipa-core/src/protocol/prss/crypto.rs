@@ -1,3 +1,5 @@
+use std::{ops::Index, array::TryFromSliceError};
+
 use aes::{
     cipher::{generic_array::GenericArray, BlockEncrypt, KeyInit},
     Aes256,
@@ -20,11 +22,12 @@ use crate::{
 /// It was previously assumed that our fields were of order << 2^128, in which case
 /// `Field::truncate_from` can be used for this purpose. This trait makes the contract explicit.
 pub trait FromRandom {
-    type Source;
+    // Really we would just like to make a const parameter for N and write `[u128; Self::N]` instead
+    // of `Self::Source`. But that's not currently supported.
+    type Source: TryFrom<Vec<u128>, Error = Vec<u128>>; // == [u128; N]
+    fn len() -> usize; // returns N
 
-    fn len() -> usize;
-
-    /// Generate a random value of `Self` from a uniformly-distributed random u128.
+    /// Generate a random value of `Self` from a uniformly-distributed `Self::Source`.
     fn from_random(src: Self::Source) -> Self;
 }
 
@@ -54,13 +57,11 @@ pub trait FromPrss: Sized {
 
 /// Generate two random values, one that is known to the left helper
 /// and one that is known to the right helper.
-impl<T: FromRandom<Source = [u128; N]>, const N: usize> FromPrss for (T, T)
-where
-    [u128; N]: Default,
-{
+impl<T: FromRandom> FromPrss for (T, T) {
     fn from_prss<P: SharedRandomness + ?Sized, I: Into<u128>>(prss: &P, index: I) -> (T, T) {
+        let index = index.into();
         let (l, r): (Vec<_>, Vec<_>) = (0..<T as FromRandom>::len().try_into().unwrap())
-            .map(|i| prss.generate_values::<u128>(index.into() * u128::try_from(<T as FromRandom>::len()).unwrap() + i))
+            .map(|i| prss.generate_values::<u128>(index * u128::try_from(<T as FromRandom>::len()).unwrap() + i))
             .unzip();
         (T::from_random(l.try_into().unwrap()), T::from_random(r.try_into().unwrap()))
     }
