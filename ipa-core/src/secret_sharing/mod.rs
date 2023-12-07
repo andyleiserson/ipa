@@ -74,18 +74,13 @@ pub trait SharedValue:
     const ZERO: Self;
 }
 
+// TODO: rename to Vectorizable?
 pub trait ArrayFromRandom<const N: usize>: SharedValue {
     // TODO: why are Clone + Send + Sync necessary here?
     // Clone, in particular, was wanted by the compiler, but it seems like it should be available from SharedValueArray?
     // Ditto SharedValueArray. seems like the compiler does not traverse all paths when the associated types are constrained.
     type T: SharedValueArray<Self> + Message + FromRandom + Clone + Send + Sync;
 }
-
-/*
-impl<V: SharedValue, const N: usize> ArrayFromRandom<N> for V {
-    type T = ();
-}
-*/
 
 // The purpose of this trait is to avoid placing a `Message` trait bound on `SharedValueArray`, or
 // similar. Doing so would require either (1) a generic impl of `Serializable` for any `N`, which
@@ -95,15 +90,7 @@ impl<V: SharedValue, const N: usize> ArrayFromRandom<N> for V {
 // Writing `impl<F: Field> Vectorized<1> for F` means that the compiler will always see that it
 // is available anywhere an `F: Field` trait bound is effective.
 
-pub trait Vectorized<const N: usize>: SharedValue /* + FromPrss*/ {
-    // TODO: Can we eliminate Clone here? (In existing code, `Message`s are generally
-    // `SharedValue`s, which are always Clone.)
-    type Message: Message + Clone + Send + Sync;
-
-    fn as_message(v: &Self::Array<N>) -> &Self::Message;
-
-    fn from_message(v: Self::Message) -> Self::Array<N>;
-}
+pub trait Vectorized<const N: usize>: SharedValue { }
 
 pub trait FieldVectorized<const N: usize>:
     Field
@@ -113,38 +100,18 @@ pub trait FieldVectorized<const N: usize>:
 {
 }
 
+impl<F: Field, const N: usize> Vectorized<N> for F { }
+
 impl<F: Field> FieldVectorized<1> for F { }
 
-impl<F> Vectorized<1> for F
-where
-    F: Field /*+ FromPrss*/
-{
-    type Message = F;
-
-    fn as_message(v: &Self::Array<1>) -> &Self::Message {
-        todo!()
-    }
-
-    fn from_message(v: Self::Message) -> Self::Array<1> {
-        Self::Array::<1>::from_item(v)
-    }
-}
-
+/*
 impl<F> Vectorized<32> for F
 where
-    F: Field + FromPrss,
-    <F as SharedValue>::Array<32>: Message,
+    F: Field,
+    //<F as SharedValue>::Array<32>: Message,
 {
-    type Message = F::Array<32>;
-
-    fn as_message(v: &Self::Array<32>) -> &Self::Message {
-        todo!()
-    }
-
-    fn from_message(v: Self::Message) -> Self::Array<32> {
-        todo!()
-    }
 }
+*/
 
 pub trait SharedValueArray<V: SharedValue>:
     Clone
@@ -187,8 +154,7 @@ where
     fn from_item(item: Boolean) -> Self { <Self as SharedValueArray<Gf2>>::from_item(item.into()) }
 }
 
-// TODO: FromPrss is not correct here, this wants the generic-width equivalent of FromRandomU128
-pub trait FieldArray<F: Field>: SharedValueArray<F> /*+ FromPrss*/ {
+pub trait FieldArray<F: Field>: SharedValueArray<F> {
     fn mul_scalar(lhs: Self, rhs: F) -> Self {
         todo!()
     }
@@ -198,22 +164,7 @@ pub trait FieldArray<F: Field>: SharedValueArray<F> /*+ FromPrss*/ {
     }
 }
 
-// TODO: ditto above re: FromPrss
-impl<F: Field, A: SharedValueArray<F>/* + FromPrss*/> FieldArray<F> for A {}
-
-/*
-impl<F: Field, A: SharedValueArray<F, 1>> Serializable for A {
-    type Size;
-
-    fn serialize(&self, buf: &mut generic_array::GenericArray<u8, Self::Size>) {
-        todo!()
-    }
-
-    fn deserialize(buf: &generic_array::GenericArray<u8, Self::Size>) -> Self {
-        todo!()
-    }
-}
-*/
+impl<F: Field, A: SharedValueArray<F>> FieldArray<F> for A {}
 
 #[cfg(any(test, feature = "test-fixture", feature = "cli"))]
 impl<V> IntoShares<AdditiveShare<V>> for V

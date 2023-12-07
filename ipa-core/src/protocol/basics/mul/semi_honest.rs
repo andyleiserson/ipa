@@ -57,7 +57,7 @@ where
         ctx.send_channel(role.peer(Direction::Right))
             .send(
                 record_id,
-                <F as Vectorized<N>>::as_message(&right_d).clone(),
+                right_d.clone(),
             ) // TODO clone
             .await?;
         rhs += right_d;
@@ -78,11 +78,9 @@ where
     // Sleep until helper on the left sends us their (d_i-1) value.
     let mut lhs = FieldArray::<F>::mul_elements(a.left_arr(), b.left_arr());
     if need_to_recv {
-        let left_d: F::Array<N> = <F as Vectorized<N>>::from_message(
-            ctx.recv_channel(role.peer(Direction::Left))
-                .receive(record_id)
-                .await?,
-        );
+        let left_d: F::Array<N> = ctx.recv_channel(role.peer(Direction::Left))
+            .receive(record_id)
+            .await?;
         lhs += left_d;
     }
     // If we send, we subtract randomness, so we need to add to our share.
