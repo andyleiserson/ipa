@@ -4,7 +4,7 @@ use super::Field;
 use crate::{
     ff::Serializable,
     protocol::prss::FromRandom,
-    secret_sharing::{Vectorizable, Block, SharedValue},
+    secret_sharing::{Vectorizable, Block, SharedValue, StdArray},
 };
 
 pub trait PrimeField: Field {
@@ -276,6 +276,10 @@ mod fp31 {
 
 mod fp32bit {
     field_impl! { Fp32BitPrime, u32, 32, 4_294_967_291 }
+
+    impl Vectorizable<32> for Fp32BitPrime {
+        type T = StdArray<Fp32BitPrime, 32>;
+    }
 
     #[cfg(all(test, unit_test))]
     mod specialized_tests {

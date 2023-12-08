@@ -26,7 +26,7 @@ use replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing};
 pub use scheme::{Bitwise, Linear, LinearRefOps, SecretSharing};
 
 use crate::{
-    ff::{AddSub, AddSubAssign, Field, Serializable, Gf2, boolean::Boolean},
+    ff::{AddSub, AddSubAssign, Field, Serializable, Gf2, boolean::Boolean, Fp32BitPrime},
     helpers::Message, protocol::prss::{FromPrss, FromRandom},
 };
 
@@ -107,14 +107,7 @@ impl<F: Field, const N: usize> SharedValueSimd<N> for F { }
 
 impl<F: Field> FieldSimd<1> for F { }
 
-/*
-impl<F> Vectorized<32> for F
-where
-    F: Field,
-    //<F as SharedValue>::Array<32>: Message,
-{
-}
-*/
+impl FieldSimd<32> for Fp32BitPrime { }
 
 pub trait SharedValueArray<V: SharedValue>:
     Clone

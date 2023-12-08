@@ -207,7 +207,6 @@ mod test {
     const MANYMULT_ITERS: usize = 16384;
     const MANYMULT_WIDTH: usize = 32;
 
-    /* TODO
     #[tokio::test]
     pub async fn wide_mul() {
         const COUNT: usize = 32;
@@ -244,7 +243,6 @@ mod test {
             .await;
         assert_eq!(expected, results.reconstruct_arr());
     }
-    */
 
     #[tokio::test]
     pub async fn manymult_novec() {
@@ -295,7 +293,6 @@ mod test {
         assert_eq!(expected, result.reconstruct());
     }
 
-    /* TODO
     #[tokio::test]
     pub async fn manymult_vec() {
         let world = TestWorld::default();
@@ -338,5 +335,4 @@ mod test {
         tracing::info!("Protocol execution time: {:?}", begin.elapsed());
         assert_eq!(expected, result.reconstruct_arr());
     }
-    */
 }
