@@ -149,17 +149,28 @@ where
     fn from_item(item: Boolean) -> Self { <Self as SharedValueArray<Gf2>>::from_item(item.into()) }
 }
 
-pub trait FieldArray<F: Field>: SharedValueArray<F> {
+pub trait FieldArray<F: Field>:
+    SharedValueArray<F>
+    + Mul<F, Output = Self>
+    + for<'a> Mul<&'a Self, Output = Self>
+{
     fn mul_scalar(lhs: Self, rhs: F) -> Self {
-        todo!()
+        lhs * rhs
     }
 
     fn mul_elements(lhs: &Self, rhs: &Self) -> Self {
-        todo!();
+        lhs.clone() * rhs
     }
 }
 
-impl<F: Field, A: SharedValueArray<F>> FieldArray<F> for A {}
+impl<F, A> FieldArray<F> for A
+where
+    F: Field,
+    A: SharedValueArray<F>
+        + Mul<F, Output = Self>
+        + for<'a> Mul<&'a Self, Output = Self>,
+{
+}
 
 #[cfg(any(test, feature = "test-fixture", feature = "cli"))]
 impl<V> IntoShares<AdditiveShare<V>> for V

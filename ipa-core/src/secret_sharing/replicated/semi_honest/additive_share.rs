@@ -28,7 +28,19 @@ impl<V: SharedValue, const N: usize> SecretSharing<V> for AdditiveShare<V, N> {
     const ZERO: Self = Self(V::Array::ZERO, V::Array::ZERO);
 }
 
-impl<F: Field, const N: usize> LinearSecretSharing<F> for AdditiveShare<F, N> {}
+/*
+impl<F, const N: usize> LinearSecretSharing<F> for AdditiveShare<F, N>
+where
+    F: Field,
+    F::Array<N>: FieldArray<F>,
+{}
+*/
+
+impl<F> LinearSecretSharing<F> for AdditiveShare<F, 1>
+where
+    F: Field,
+    F::Array<1>: FieldArray<F>,
+{}
 
 impl<V: SharedValue + Debug, const N: usize> Debug for AdditiveShare<V, N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -273,7 +285,11 @@ impl<V: SharedValue, const N: usize> SubAssign<Self> for AdditiveShare<V, N> {
     }
 }
 
-impl<'a, 'b, F: Field, const N: usize> Mul<&'b F> for &'a AdditiveShare<F, N> {
+impl<'a, 'b, F, const N: usize> Mul<&'b F> for &'a AdditiveShare<F, N>
+where
+    F: Field,
+    F::Array<N>: FieldArray<F>,
+{
     type Output = AdditiveShare<F, N>;
 
     fn mul(self, rhs: &'b F) -> Self::Output {
@@ -284,7 +300,11 @@ impl<'a, 'b, F: Field, const N: usize> Mul<&'b F> for &'a AdditiveShare<F, N> {
     }
 }
 
-impl<F: Field, const N: usize> Mul<F> for AdditiveShare<F, N> {
+impl<F: Field, const N: usize> Mul<F> for AdditiveShare<F, N>
+where
+    F: Field,
+    F::Array<N>: FieldArray<F>,
+{
     type Output = Self;
 
     fn mul(self, rhs: F) -> Self::Output {
@@ -292,7 +312,11 @@ impl<F: Field, const N: usize> Mul<F> for AdditiveShare<F, N> {
     }
 }
 
-impl<'a, F: Field, const N: usize> Mul<&'a F> for AdditiveShare<F, N> {
+impl<'a, F, const N: usize> Mul<&'a F> for AdditiveShare<F, N>
+where
+    F: Field,
+    F::Array<N>: FieldArray<F>,
+{
     type Output = Self;
 
     fn mul(self, rhs: &F) -> Self::Output {
@@ -300,7 +324,11 @@ impl<'a, F: Field, const N: usize> Mul<&'a F> for AdditiveShare<F, N> {
     }
 }
 
-impl<F: Field, const N: usize> Mul<F> for &AdditiveShare<F, N> {
+impl<F, const N: usize> Mul<F> for &AdditiveShare<F, N>
+where
+    F: Field,
+    F::Array<N>: FieldArray<F>,
+{
     type Output = AdditiveShare<F, N>;
 
     fn mul(self, rhs: F) -> Self::Output {
