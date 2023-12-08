@@ -11,7 +11,7 @@ use super::ArrayAccess;
 use crate::{
     ff::{Field, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{ArrayFromRandom, Block, SharedValue},
+    secret_sharing::{Vectorizable, Block, SharedValue},
 };
 
 /// Trait for data types storing arbitrary number of bits.
@@ -154,7 +154,7 @@ macro_rules! bit_array_impl {
                 const ZERO: Self = Self(<$store>::ZERO);
             }
 
-            impl ArrayFromRandom<1> for $name {
+            impl Vectorizable<1> for $name {
                 type T = <Self as SharedValue>::Array<1>;
             }
 

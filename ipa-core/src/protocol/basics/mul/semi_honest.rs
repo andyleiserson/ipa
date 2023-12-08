@@ -10,7 +10,7 @@ use crate::{
     },
     secret_sharing::{
         replicated::semi_honest::AdditiveShare as Replicated, FieldArray, SharedValueArray,
-        Vectorized, FieldVectorized, SharedValue,
+        SharedValueSimd, FieldSimd, SharedValue,
     },
 };
 
@@ -36,7 +36,7 @@ pub async fn multiply<C, F, const N: usize>(
 ) -> Result<Replicated<F, N>, Error>
 where
     C: Context,
-    F: Field + FieldVectorized<N>,
+    F: Field + FieldSimd<N>,
 {
     let role = ctx.role();
     let [need_to_recv, need_to_send, need_random_right] = zeros.work_for(role);

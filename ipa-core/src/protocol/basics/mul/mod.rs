@@ -10,7 +10,7 @@ use crate::{
     secret_sharing::{replicated::{
         malicious::{AdditiveShare as MaliciousReplicated, ExtendableField},
         semi_honest::AdditiveShare as Replicated,
-    }, Vectorized},
+    }, SharedValueSimd},
 };
 
 pub(crate) mod malicious;
@@ -55,7 +55,7 @@ use {malicious::multiply as malicious_mul, semi_honest::multiply as semi_honest_
 impl<C, F> SecureMul<C> for Replicated<F>
 where
     C: Context,
-    F: Field + Vectorized<1>,
+    F: Field + SharedValueSimd<1>,
 {
     async fn multiply_sparse<'fut>(
         &self,

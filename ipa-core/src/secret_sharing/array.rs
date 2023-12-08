@@ -10,7 +10,7 @@ use typenum::U32;
 use crate::{
     ff::{Field, Serializable, Fp32BitPrime},
     helpers::Message,
-    secret_sharing::{SharedValue, SharedValueArray, ArrayFromRandom}, protocol::prss::{SharedRandomness, FromRandom},
+    secret_sharing::{SharedValue, SharedValueArray, Vectorizable}, protocol::prss::{SharedRandomness, FromRandom},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]

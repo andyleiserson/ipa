@@ -9,7 +9,7 @@ use typenum::{U32, U8};
 use crate::{
     ff::{boolean::Boolean, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{replicated::ReplicatedSecretSharing, ArrayFromRandom, Block, StdArray},
+    secret_sharing::{replicated::ReplicatedSecretSharing, Vectorizable, Block, StdArray},
 };
 
 /// The implementation below cannot be constrained without breaking Rust's
@@ -151,7 +151,7 @@ macro_rules! boolean_array_impl {
                 }
             }
 
-            impl ArrayFromRandom<1> for $name {
+            impl Vectorizable<1> for $name {
                 type T = <Self as SharedValue>::Array<1>;
             }
 

@@ -74,12 +74,15 @@ pub trait SharedValue:
     const ZERO: Self;
 }
 
-// TODO: rename to Vectorizable?
-pub trait ArrayFromRandom<const N: usize>: SharedValue {
-    // TODO: why are Clone + Send + Sync necessary here?
-    // Clone, in particular, was wanted by the compiler, but it seems like it should be available from SharedValueArray?
-    // Ditto SharedValueArray. seems like the compiler does not traverse all paths when the associated types are constrained.
-    type T: SharedValueArray<Self> + Message + FromRandom + Clone + Send + Sync;
+pub trait Vectorizable<const N: usize>: SharedValue {
+    // There are two (three?) kinds of bounds here:
+    //  1. Bounds that apply to the array type for vectorized operation, but not universally to
+    //     `SharedValue::Array`.
+    //  2. Bounds that apply universally to `SharedValue::Array`, but are replicated here due
+    //     to a compiler limitation.
+    //  3. Field vs. SharedValue
+    // https://github.com/rust-lang/rust/issues/41118
+    type T: Message + FromRandom + SharedValueArray<Self> + Clone + Eq + Send + Sync;
 }
 
 // The purpose of this trait is to avoid placing a `Message` trait bound on `SharedValueArray`, or
@@ -90,19 +93,19 @@ pub trait ArrayFromRandom<const N: usize>: SharedValue {
 // Writing `impl<F: Field> Vectorized<1> for F` means that the compiler will always see that it
 // is available anywhere an `F: Field` trait bound is effective.
 
-pub trait Vectorized<const N: usize>: SharedValue { }
+pub trait SharedValueSimd<const N: usize>: SharedValue { }
 
-pub trait FieldVectorized<const N: usize>:
+pub trait FieldSimd<const N: usize>:
     Field
-    + Vectorized<N>
-    + SharedValue<Array<N> = <Self as ArrayFromRandom<N>>::T>
-    + ArrayFromRandom<N>
+    + SharedValueSimd<N>
+    + SharedValue<Array<N> = <Self as Vectorizable<N>>::T>
+    + Vectorizable<N>
 {
 }
 
-impl<F: Field, const N: usize> Vectorized<N> for F { }
+impl<F: Field, const N: usize> SharedValueSimd<N> for F { }
 
-impl<F: Field> FieldVectorized<1> for F { }
+impl<F: Field> FieldSimd<1> for F { }
 
 /*
 impl<F> Vectorized<32> for F

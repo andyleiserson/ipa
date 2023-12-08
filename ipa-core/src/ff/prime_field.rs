@@ -4,7 +4,7 @@ use super::Field;
 use crate::{
     ff::Serializable,
     protocol::prss::FromRandom,
-    secret_sharing::{ArrayFromRandom, Block, SharedValue},
+    secret_sharing::{Vectorizable, Block, SharedValue},
 };
 
 pub trait PrimeField: Field {
@@ -44,7 +44,7 @@ macro_rules! field_impl {
             const ZERO: Self = $field(0);
         }
 
-        impl ArrayFromRandom<1> for $field {
+        impl Vectorizable<1> for $field {
             type T = <Self as SharedValue>::Array<1>;
         }
 
