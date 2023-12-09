@@ -143,7 +143,7 @@ impl GatewaySenders {
         match self.inner.entry(channel_id.clone()) {
             Entry::Occupied(entry) => (Arc::clone(entry.get()), None),
             Entry::Vacant(entry) => {
-                const SPARE: Option<NonZeroUsize> = NonZeroUsize::new(64);
+                const SPARE: Option<NonZeroUsize> = NonZeroUsize::new(256);
                 // a little trick - if number of records is indeterminate, set the capacity to 1.
                 // Any send will wake the stream reader then, effectively disabling buffering.
                 // This mode is clearly inefficient, so avoid using this mode.

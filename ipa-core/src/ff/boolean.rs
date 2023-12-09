@@ -5,7 +5,7 @@ use super::Gf32Bit;
 use crate::{
     ff::{Field, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{replicated::malicious::ExtendableField, Block, SharedValue, Gf2Array, Vectorizable},
+    secret_sharing::{replicated::malicious::ExtendableField, Block, SharedValue, FieldVectorizable, Gf2Array, Vectorizable},
 };
 
 impl Block for bool {
@@ -32,6 +32,10 @@ impl SharedValue for Boolean {
 }
 
 impl Vectorizable<1> for Boolean {
+    type T = <Self as SharedValue>::Array<1>;
+}
+
+impl FieldVectorizable<1> for Boolean {
     type T = <Self as SharedValue>::Array<1>;
 }
 

@@ -67,7 +67,7 @@ pub trait SharedValue:
     Clone + Copy + Eq + Debug + Send + Sync + Sized + Additive + Serializable + 'static
 {
     type Storage: Block;
-    type Array<const N: usize>: SharedValueArray<Self>;
+    type Array<const N: usize>: SharedValueArray<Self> + Into<[Self; N]>;
 
     const BITS: u32;
 
@@ -85,6 +85,17 @@ pub trait Vectorizable<const N: usize>: SharedValue {
     type T: Message + FromRandom + SharedValueArray<Self> + Clone + Eq + Send + Sync;
 }
 
+pub trait FieldVectorizable<const N: usize>: SharedValue {
+    // There are two (three?) kinds of bounds here:
+    //  1. Bounds that apply to the array type for vectorized operation, but not universally to
+    //     `SharedValue::Array`.
+    //  2. Bounds that apply universally to `SharedValue::Array`, but are replicated here due
+    //     to a compiler limitation.
+    //  3. Field vs. SharedValue
+    // https://github.com/rust-lang/rust/issues/41118
+    type T: Message + FromRandom + FieldArray<Self> + Clone + Eq + Send + Sync;
+}
+
 // The purpose of this trait is to avoid placing a `Message` trait bound on `SharedValueArray`, or
 // similar. Doing so would require either (1) a generic impl of `Serializable` for any `N`, which
 // is hard to write, or (2) additional trait bounds of something like `F::Array<1>: Message`
@@ -98,14 +109,14 @@ pub trait SharedValueSimd<const N: usize>: SharedValue { }
 pub trait FieldSimd<const N: usize>:
     Field
     + SharedValueSimd<N>
-    + SharedValue<Array<N> = <Self as Vectorizable<N>>::T>
-    + Vectorizable<N>
+    + SharedValue<Array<N> = <Self as FieldVectorizable<N>>::T>
+    + FieldVectorizable<N>
 {
 }
 
 impl<F: Field, const N: usize> SharedValueSimd<N> for F { }
 
-impl<F: Field> FieldSimd<1> for F { }
+impl<F: Field + FieldVectorizable<1>> FieldSimd<1> for F { }
 
 impl FieldSimd<32> for Fp32BitPrime { }
 
@@ -149,28 +160,38 @@ where
     fn from_item(item: Boolean) -> Self { <Self as SharedValueArray<Gf2>>::from_item(item.into()) }
 }
 
-pub trait FieldArray<F: Field>:
+pub trait FieldArray<F: SharedValue>:
     SharedValueArray<F>
-    + Mul<F, Output = Self>
+    + for<'a> Mul<&'a F, Output = Self>
     + for<'a> Mul<&'a Self, Output = Self>
 {
-    fn mul_scalar(lhs: Self, rhs: F) -> Self {
-        lhs * rhs
-    }
+    /*
+    fn mul_scalar(lhs: Self, rhs: F) -> Self;
 
-    fn mul_elements(lhs: &Self, rhs: &Self) -> Self {
-        lhs.clone() * rhs
-    }
+    fn mul_elements(lhs: &Self, rhs: &Self) -> Self;
+    */
 }
 
-impl<F, A> FieldArray<F> for A
+/*
+impl<T> FieldArray<Boolean> for T
 where
-    F: Field,
-    A: SharedValueArray<F>
-        + Mul<F, Output = Self>
-        + for<'a> Mul<&'a Self, Output = Self>,
+    T: FieldArray<Gf2> + TryFrom<Vec<Boolean>, Error = ()>,
 {
 }
+
+impl<'a, T> Mul<&'a Boolean> for T
+where
+    T: FieldArray<Gf2>
+{
+    type Output = Self;
+
+    fn mul(self, rhs: &'a Boolean) -> Self::Output {
+        self * Gf2::from(*rhs)
+    }
+}
+*/
+
+//impl<F: Field, A: SharedValueArray<F>> FieldArray<F> for A {}
 
 #[cfg(any(test, feature = "test-fixture", feature = "cli"))]
 impl<V> IntoShares<AdditiveShare<V>> for V

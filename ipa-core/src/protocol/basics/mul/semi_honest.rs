@@ -46,12 +46,12 @@ where
     // Shared randomness used to mask the values that are sent.
     let (s0, s1) = ctx.prss().generate::<(F::Array<N>, _), _>(record_id);
 
-    let mut rhs = F::Array::<N>::mul_elements(a.right_arr(), b.right_arr());
+    let mut rhs = a.right_arr().clone() * b.right_arr();
 
     if need_to_send {
         // Compute the value (d_i) we want to send to the right helper (i+1).
-        let right_d = FieldArray::<F>::mul_elements(a.left_arr(), b.right_arr())
-            + FieldArray::<F>::mul_elements(a.right_arr(), b.left_arr())
+        let right_d = a.left_arr().clone() * b.right_arr()
+            + a.right_arr().clone() * b.left_arr()
             - s0.clone(); // TODO clone
 
         ctx.send_channel(role.peer(Direction::Right))
@@ -63,8 +63,7 @@ where
         rhs += right_d;
     } else {
         debug_assert_eq!(
-            FieldArray::<F>::mul_elements(a.left_arr(), b.right_arr())
-                + FieldArray::<F>::mul_elements(a.right_arr(), b.left_arr()),
+            a.left_arr().clone() * b.right_arr() + a.right_arr().clone() * b.left_arr(),
             <F::Array<N> as SharedValueArray<F>>::ZERO
         );
     }
@@ -76,7 +75,7 @@ where
     }
 
     // Sleep until helper on the left sends us their (d_i-1) value.
-    let mut lhs = FieldArray::<F>::mul_elements(a.left_arr(), b.left_arr());
+    let mut lhs = a.left_arr().clone() * b.left_arr();
     if need_to_recv {
         let left_d: F::Array<N> = ctx.recv_channel(role.peer(Direction::Left))
             .receive(record_id)
@@ -320,7 +319,7 @@ mod test {
                     for i in 1..MANYMULT_ITERS.try_into().unwrap() {
                         val = multiply(
                             ctx.clone(),
-                            RecordId::from(MANYMULT_WIDTH * (i - 1)),
+                            RecordId::from(i - 1),
                             &val,
                             iter.next().unwrap(),
                             ZeroPositions::NONE,

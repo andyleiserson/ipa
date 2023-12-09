@@ -10,11 +10,17 @@ use typenum::U32;
 use crate::{
     ff::{Field, Serializable, Fp32BitPrime},
     helpers::Message,
-    secret_sharing::{SharedValue, SharedValueArray, Vectorizable}, protocol::prss::{SharedRandomness, FromRandom},
+    secret_sharing::{SharedValue, SharedValueArray, Vectorizable, FieldArray}, protocol::prss::{SharedRandomness, FromRandom},
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StdArray<V: SharedValue, const N: usize>([V; N]);
+
+impl<V: SharedValue, const N: usize> From<StdArray<V, N>> for [V; N] {
+    fn from(value: StdArray<V, N>) -> Self {
+        value.0
+    }
+}
 
 impl<V: SharedValue, const N: usize> SharedValueArray<V> for StdArray<V, N> {
     const ZERO: Self = Self([V::ZERO; N]);
@@ -33,6 +39,8 @@ impl<V: SharedValue, const N: usize> SharedValueArray<V> for StdArray<V, N> {
         res
     }
 }
+
+impl<F: Field, const N: usize> FieldArray<F> for StdArray<F, N> { }
 
 impl<V: SharedValue, const N: usize> TryFrom<Vec<V>> for StdArray<V, N> {
     type Error = ();
@@ -205,6 +213,14 @@ impl<F: Field, const N: usize> Mul<F> for &StdArray<F, N> {
     }
 }
 
+impl<'a, F: Field, const N: usize> Mul<&'a StdArray<F, N>> for StdArray<F, N> {
+    type Output = StdArray<F, N>;
+
+    fn mul(self, rhs: &'a StdArray<F, N>) -> Self::Output {
+        StdArray(array::from_fn(|i| self.0[i] * rhs.0[i]))
+    }
+}
+
 /*
 impl<V: SharedValue> ArrayFromRandom<N> for StdArray<V, 1> {
     type T = Self;
@@ -259,11 +275,13 @@ where
     type Size = <<V as Serializable>::Size as Mul<U32>>::Output;
 
     fn serialize(&self, buf: &mut GenericArray<u8, Self::Size>) {
-        todo!()
+        for i in 0..32 {
+            self.0[i].serialize(&mut GenericArray::try_from_mut_slice(&mut buf[4*i..4*(i+1)]).unwrap()); // TODO: sizeof
+        }
     }
 
     fn deserialize(buf: &GenericArray<u8, Self::Size>) -> Self {
-        todo!()
+        Self(array::from_fn(|i| V::deserialize(&GenericArray::from_slice(&buf[4*i..4*(i+1)])))) // TODO: sizeof
     }
 }
 

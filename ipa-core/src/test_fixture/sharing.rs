@@ -81,19 +81,20 @@ impl<F: Field> Reconstruct<F> for [Replicated<F>; 3] {
 
 impl<F: Field, const N: usize> ReconstructArr<[F; N]> for [Replicated<F, N>; 3] {
     fn reconstruct_arr(&self) -> [F; N] {
-        todo!();
-        /*
-        array::from_fn(|i| {
-            let s0l = self[0].left_arr()[i];
-            let s0r = self[0].right_arr()[i];
-            let s1l = self[1].left_arr()[i];
-            let s1r = self[1].right_arr()[i];
-            let s2l = self[2].left_arr()[i];
-            let s2r = self[2].right_arr()[i];
+        let s0l = self[0].left_arr();
+        let s0r = self[0].right_arr();
+        let s1l = self[1].left_arr();
+        let s1r = self[1].right_arr();
+        let s2l = self[2].left_arr();
+        let s2r = self[2].right_arr();
 
-            raw_reconstruct(s0l, s0r, s1l, s1r, s2l, s2r)
-        })
-        */
+        assert_eq!(s0l.clone() + s1l + s2l, s0r.clone() + s1r + s2r);
+
+        assert_eq!(s0r, s1l);
+        assert_eq!(s1r, s2l);
+        assert_eq!(s2r, s0l);
+
+        (s0l.clone() + s1l + s2l).into()
     }
 }
 

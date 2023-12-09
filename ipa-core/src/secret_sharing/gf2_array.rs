@@ -9,7 +9,7 @@ use typenum::U1;
 
 use crate::{
     ff::{Gf2, Serializable, boolean::Boolean, Field},
-    secret_sharing::{SharedValue, SharedValueArray}, protocol::prss::{FromPrss, SharedRandomness, FromRandom}, helpers::Message,
+    secret_sharing::{SharedValue, SharedValueArray, FieldArray}, protocol::prss::{FromPrss, SharedRandomness, FromRandom}, helpers::Message,
 };
 
 type WORD = u64;
@@ -24,6 +24,20 @@ type WORD = u64;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Gf2Array<const WORDS: usize>([WORD; WORDS]);
 
+impl<const N: usize> From<Gf2Array<N>> for [Boolean; N] {
+    fn from(value: Gf2Array<N>) -> Self {
+        todo!()
+    }
+}
+
+impl<const N: usize> From<Gf2Array<N>> for [Gf2; N] {
+    fn from(value: Gf2Array<N>) -> Self {
+        todo!()
+    }
+}
+
+// This is necessary because rust can substitute the associated constant in some places where it
+// cannot substitute the type parameter.
 impl<const WORDS: usize> Gf2Array<WORDS> {
     const WORDS: usize = WORDS;
 }
@@ -45,6 +59,10 @@ impl<const WORDS: usize> SharedValueArray<Gf2> for Gf2Array<WORDS> {
         Gf2Array(res)
     }
 }
+
+impl<const WORDS: usize> FieldArray<Gf2> for Gf2Array<WORDS> { }
+
+impl<const WORDS: usize> FieldArray<Boolean> for Gf2Array<WORDS> { }
 
 impl<const WORDS: usize> TryFrom<Vec<Gf2>> for Gf2Array<WORDS> {
     type Error = ();
@@ -225,6 +243,22 @@ impl<const WORDS: usize> Mul<Gf2> for &Gf2Array<WORDS> {
 
     fn mul(self, rhs: Gf2) -> Self::Output {
         Mul::mul(self, &rhs)
+    }
+}
+
+impl<'a, const WORDS: usize> Mul<&'a Boolean> for Gf2Array<WORDS> {
+    type Output = Self;
+
+    fn mul(self, rhs: &'a Boolean) -> Self::Output {
+        Mul::mul(&self, Gf2::from(*rhs))
+    }
+}
+
+impl<'a, const WORDS: usize> Mul<&'a Gf2Array<WORDS>> for Gf2Array<WORDS> {
+    type Output = Gf2Array<WORDS>;
+
+    fn mul(self, rhs: &'a Gf2Array<WORDS>) -> Self::Output {
+        Gf2Array(array::from_fn(|i| self.0[i] & rhs.0[i]))
     }
 }
 

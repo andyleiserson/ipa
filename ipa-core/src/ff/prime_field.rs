@@ -4,7 +4,7 @@ use super::Field;
 use crate::{
     ff::Serializable,
     protocol::prss::FromRandom,
-    secret_sharing::{Vectorizable, Block, SharedValue, StdArray},
+    secret_sharing::{FieldVectorizable, Vectorizable, Block, SharedValue, StdArray},
 };
 
 pub trait PrimeField: Field {
@@ -45,6 +45,10 @@ macro_rules! field_impl {
         }
 
         impl Vectorizable<1> for $field {
+            type T = <Self as SharedValue>::Array<1>;
+        }
+
+        impl FieldVectorizable<1> for $field {
             type T = <Self as SharedValue>::Array<1>;
         }
 
@@ -278,6 +282,10 @@ mod fp32bit {
     field_impl! { Fp32BitPrime, u32, 32, 4_294_967_291 }
 
     impl Vectorizable<32> for Fp32BitPrime {
+        type T = StdArray<Fp32BitPrime, 32>;
+    }
+
+    impl FieldVectorizable<32> for Fp32BitPrime {
         type T = StdArray<Fp32BitPrime, 32>;
     }
 
