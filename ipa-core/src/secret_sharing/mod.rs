@@ -165,33 +165,7 @@ pub trait FieldArray<F: SharedValue>:
     + for<'a> Mul<&'a F, Output = Self>
     + for<'a> Mul<&'a Self, Output = Self>
 {
-    /*
-    fn mul_scalar(lhs: Self, rhs: F) -> Self;
-
-    fn mul_elements(lhs: &Self, rhs: &Self) -> Self;
-    */
 }
-
-/*
-impl<T> FieldArray<Boolean> for T
-where
-    T: FieldArray<Gf2> + TryFrom<Vec<Boolean>, Error = ()>,
-{
-}
-
-impl<'a, T> Mul<&'a Boolean> for T
-where
-    T: FieldArray<Gf2>
-{
-    type Output = Self;
-
-    fn mul(self, rhs: &'a Boolean) -> Self::Output {
-        self * Gf2::from(*rhs)
-    }
-}
-*/
-
-//impl<F: Field, A: SharedValueArray<F>> FieldArray<F> for A {}
 
 #[cfg(any(test, feature = "test-fixture", feature = "cli"))]
 impl<V> IntoShares<AdditiveShare<V>> for V
