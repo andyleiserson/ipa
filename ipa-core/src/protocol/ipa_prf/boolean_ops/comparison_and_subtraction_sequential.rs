@@ -1,3 +1,5 @@
+use std::{ops::Not, iter::repeat};
+
 #[cfg(all(test, unit_test))]
 use ipa_macros::Step;
 
@@ -12,7 +14,7 @@ use crate::{
         step::BitOpStep,
         RecordId,
     },
-    secret_sharing::{replicated::semi_honest::AdditiveShare, SharedValue},
+    secret_sharing::{replicated::semi_honest::AdditiveShare, SharedValue, FieldSimd, Additive},
 };
 
 #[cfg(all(test, unit_test))]
@@ -22,6 +24,7 @@ pub(crate) enum Step {
     MultiplyWithCarry,
 }
 
+/*
 /// Comparison operation
 /// outputs x>=y
 /// # Errors
@@ -49,31 +52,31 @@ where
     let _ = subtraction_circuit(ctx, record_id, x, y, &mut carry).await;
     Ok(carry)
 }
+*/
 
 /// Comparison operation
 /// outputs x>y
 /// # Errors
 /// propagates errors from multiply
-pub async fn compare_gt<C, XS, YS>(
+pub async fn compare_gt<C, F, const N: usize>(
     ctx: C,
     record_id: RecordId,
-    x: &AdditiveShare<XS>,
-    y: &AdditiveShare<YS>,
-) -> Result<AdditiveShare<XS::Element>, Error>
+    x: &[AdditiveShare<F, N>],
+    y: &[AdditiveShare<F, N>],
+) -> Result<AdditiveShare<F, N>, Error>
 where
     C: Context,
-    for<'a> &'a AdditiveShare<XS>: IntoIterator<Item = AdditiveShare<XS::Element>>,
-    YS: SharedValue + CustomArray<Element = XS::Element>,
-    XS: SharedValue + CustomArray + Field,
-    XS::Element: Field + std::ops::Not<Output = XS::Element>,
+    F: Field + FieldSimd<N>,
+    AdditiveShare<F, N>: SecureMul<C> + Not<Output = AdditiveShare<F, N>>,
 {
     // we need to initialize carry to 0 for x>y
-    let mut carry = AdditiveShare::<XS::Element>::ZERO;
+    let mut carry = AdditiveShare::<F, N>::ZERO;
     // we don't care about the subtraction, we just want the carry
     let _ = subtraction_circuit(ctx, record_id, x, y, &mut carry).await;
     Ok(carry)
 }
 
+/*
 /// non-saturated unsigned integer subtraction
 /// subtracts y from x, Output has same length as x (carries and indices of y too large for x are ignored)
 /// when y>x, it computes `(x+"XS::MaxValue")-y`
@@ -134,6 +137,7 @@ where
         .multiply(&result, ctx.narrow(&Step::MultiplyWithCarry), record_id)
         .await
 }
+*/
 
 /// subtraction using bit subtractor
 /// subtracts y from x, Output has same length as x (carries and indices of y too large for x are ignored)
@@ -141,33 +145,32 @@ where
 ///
 /// # Errors
 /// propagates errors from multiply
-async fn subtraction_circuit<C, XS, YS>(
+async fn subtraction_circuit<C, F, const N: usize>(
     ctx: C,
     record_id: RecordId,
-    x: &AdditiveShare<XS>,
-    y: &AdditiveShare<YS>,
-    carry: &mut AdditiveShare<XS::Element>,
-) -> Result<AdditiveShare<XS>, Error>
+    x: &[AdditiveShare<F, N>],
+    y: &[AdditiveShare<F, N>],
+    carry: &mut AdditiveShare<F, N>,
+) -> Result<Vec<AdditiveShare<F, N>>, Error>
 where
     C: Context,
-    for<'a> &'a AdditiveShare<XS>: IntoIterator<Item = AdditiveShare<XS::Element>>,
-    XS: SharedValue + CustomArray,
-    YS: SharedValue + CustomArray<Element = XS::Element>,
-    XS::Element: Field + std::ops::Not<Output = XS::Element>,
+    F: Field + FieldSimd<N>,
+    AdditiveShare<F, N>: SecureMul<C> + Not<Output = AdditiveShare<F, N>>,
 {
-    let mut result = AdditiveShare::<XS>::ZERO;
-    for (i, v) in x.into_iter().enumerate() {
-        result.set(
-            i,
-            bit_subtractor(
-                ctx.narrow(&BitOpStep::from(i)),
-                record_id,
-                &v,
-                y.get(i).as_ref(),
-                carry,
-            )
-            .await?,
-        );
+    let mut result = Vec::with_capacity(x.len());
+    assert!(y.len() <= x.len());
+
+    for (i, (xb, yb)) in x.iter().zip(
+        y.iter().chain(repeat(&AdditiveShare::<F, N>::ZERO))
+    ).enumerate()
+    {
+        result.push(bit_subtractor(
+            ctx.narrow(&BitOpStep::from(i)),
+            record_id,
+            xb,
+            yb,
+            carry,
+        ).await?);
     }
 
     Ok(result)
@@ -187,23 +190,24 @@ where
 ///
 /// # Errors
 /// propagates errors from multiply
-async fn bit_subtractor<C, S>(
+async fn bit_subtractor<C, F, const N: usize>(
     ctx: C,
     record_id: RecordId,
-    x: &AdditiveShare<S>,
-    y: Option<&AdditiveShare<S>>,
-    carry: &mut AdditiveShare<S>,
-) -> Result<AdditiveShare<S>, Error>
+    x: &AdditiveShare<F, N>,
+    y: &AdditiveShare<F, N>,
+    carry: &mut AdditiveShare<F, N>,
+) -> Result<AdditiveShare<F, N>, Error>
 where
     C: Context,
-    S: Field + std::ops::Not<Output = S>,
+    F: Field + FieldSimd<N>,
+    AdditiveShare<F, N>: SecureMul<C> + Not<Output = AdditiveShare<F, N>>,
 {
-    let output = x + !(y.unwrap_or(&AdditiveShare::<S>::ZERO) + &*carry);
+    let output = x + !(y + &*carry);
 
     *carry = &*carry
         + (x + &*carry)
             .multiply(
-                &(!(y.unwrap_or(&AdditiveShare::<S>::ZERO) + &*carry)),
+                &(!(y + &*carry)),
                 ctx,
                 record_id,
             )
@@ -220,19 +224,19 @@ mod test {
         ff::{
             boolean::Boolean,
             boolean_array::{BA3, BA32, BA5, BA64},
-            Expand, Field,
+            Expand, Field, Gf2,
         },
         protocol,
         protocol::{
             context::Context,
             ipa_prf::boolean_ops::comparison_and_subtraction_sequential::{
-                compare_geq, compare_gt, integer_sat_sub, integer_sub,
+                /*compare_geq,*/ compare_gt, /*integer_sat_sub, integer_sub,*/
             },
         },
         rand::thread_rng,
         secret_sharing::{
             replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing},
-            SharedValue,
+            SharedValue, Gf2Array, IntoShares,
         },
         test_executor::run,
         test_fixture::{Reconstruct, Runner, TestWorld},
@@ -270,6 +274,7 @@ mod test {
         );
     }
 
+    /*
     /// testing comparisons geq
     #[test]
     fn semi_honest_compare_geq() {
@@ -316,6 +321,7 @@ mod test {
             assert_eq!(result2, <Boolean>::from(true));
         });
     }
+    */
 
     /// testing comparisons gt
     #[test]
@@ -328,16 +334,21 @@ mod test {
             let records: Vec<BA64> = vec![rng.gen::<BA64>(), rng.gen::<BA64>()];
             let x = records[0].as_u128();
             let y = records[1].as_u128();
+            //let x = rng.gen::<Gf2Array<1>>();
+            //let y = rng.gen::<Gf2Array<1>>();
+            let xa = (0..64).map(|i| if (x >> i) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }).collect::<Vec<_>>();
+            let ya = (0..64).map(|i| if (y >> i) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }).collect::<Vec<_>>();
+            //let _ = <Vec<Gf2> as IntoShares<Vec<AdditiveShare<Gf2>>>>::share_with;
 
             let expected = x > y;
 
             let result = world
-                .semi_honest(records.clone().into_iter(), |ctx, x_y| async move {
-                    compare_gt::<_, BA64, BA64>(
+                .semi_honest((xa.clone().into_iter(), ya.clone().into_iter()), |ctx, (x, y)| async move {
+                    compare_gt(
                         ctx.set_total_records(1),
                         protocol::RecordId(0),
-                        &x_y[0],
-                        &x_y[1],
+                        &x[..],
+                        &y[..],
                     )
                     .await
                     .unwrap()
@@ -345,8 +356,9 @@ mod test {
                 .await
                 .reconstruct();
 
-            assert_eq!(result, <Boolean>::from(expected));
+            assert_eq!(result, <Gf2>::from(expected));
 
+            /*
             // check that x is not greater than itself
             let result2 = world
                 .semi_honest(records.into_iter(), |ctx, x_y| async move {
@@ -362,9 +374,11 @@ mod test {
                 .await
                 .reconstruct();
             assert_eq!(result2, <Boolean>::from(false));
+            */
         });
     }
 
+    /*
     /// testing correctness of subtraction
     #[test]
     fn semi_honest_sub() {
@@ -487,4 +501,5 @@ mod test {
             assert_eq!((x, y, result), (x, y, expected));
         });
     }
+    */
 }

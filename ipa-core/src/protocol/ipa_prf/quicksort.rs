@@ -51,6 +51,8 @@ where
     for<'a> &'a AdditiveShare<K>: IntoIterator<Item = AdditiveShare<K::Element>>,
     K: SharedValue + Field + CustomArray<Element = Boolean>,
 {
+    unimplemented!()
+    /*
     // create stack
     let mut stack: Vec<(C, usize, usize)> = vec![];
 
@@ -120,6 +122,7 @@ where
 
     // no error happened, sorted successfully
     Ok(())
+    */
 }
 
 #[cfg(all(test, unit_test))]

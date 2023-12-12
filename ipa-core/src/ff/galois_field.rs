@@ -700,5 +700,13 @@ bit_array_impl!(
                 bool::from(value).into()
             }
         }
+
+        impl std::ops::Not for Gf2 {
+            type Output = Self;
+
+            fn not(self) -> Self {
+                (!bool::from(self)).into()
+            }
+        }
     }
 );

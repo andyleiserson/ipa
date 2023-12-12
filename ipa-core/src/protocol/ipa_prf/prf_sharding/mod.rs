@@ -18,7 +18,7 @@ use crate::{
         context::{Context, UpgradableContext, UpgradedContext, Validator},
         ipa_prf::boolean_ops::{
             addition_sequential::integer_add,
-            comparison_and_subtraction_sequential::{compare_gt, integer_sub},
+            comparison_and_subtraction_sequential::{compare_gt/*, integer_sub*/},
         },
         modulus_conversion::{convert_bits, BitConversionTriple, ToBitConversionTriples},
         RecordId,
@@ -108,6 +108,8 @@ impl<
         for<'a> &'a Replicated<TV>: IntoIterator<Item = Replicated<Boolean>>,
         for<'a> &'a Replicated<TS>: IntoIterator<Item = Replicated<Boolean>>,
     {
+        unimplemented!()
+        /*
         let is_source_event = input_row.is_trigger_bit.clone().not();
 
         let (
@@ -201,6 +203,7 @@ impl<
             capped_attributed_trigger_value,
         };
         Ok(outputs_for_aggregation)
+        */
     }
 }
 
@@ -726,6 +729,8 @@ where
     TS: SharedValue + CustomArray<Element = Boolean> + Field,
     for<'a> &'a Replicated<TS>: IntoIterator<Item = Replicated<Boolean>>,
 {
+    unimplemented!()
+    /*
     if let Some(attribution_window_seconds) = attribution_window_seconds {
         let time_delta_bits = integer_sub(
             ctx.narrow(&Step::ComputeTimeDelta),
@@ -749,6 +754,7 @@ where
         // if there is no attribution window, then all trigger events are attributed
         Ok(Replicated::share_known_value(&ctx, Boolean::ONE))
     }
+    */
 }
 
 ///

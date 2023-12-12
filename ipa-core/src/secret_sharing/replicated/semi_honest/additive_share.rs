@@ -54,10 +54,12 @@ impl<V: SharedValue> Default for AdditiveShare<V> {
     }
 }
 
-impl<V: SharedValue> AdditiveShare<V> {
-    /// Replicated secret share where both left and right values are `F::ZERO`
+impl<V: SharedValue, const N: usize> AdditiveShare<V, N> {
+    /// Replicated secret share where both left and right values are `V::ZERO`
     pub const ZERO: Self = Self(V::Array::ZERO, V::Array::ZERO);
+}
 
+impl<V: SharedValue> AdditiveShare<V> {
     pub fn as_tuple(&self) -> (V, V) {
         (self.0.index(0), self.1.index(0))
     }
