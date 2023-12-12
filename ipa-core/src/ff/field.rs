@@ -8,7 +8,7 @@ use typenum::{U1, U4};
 use crate::{
     error,
     protocol::prss::FromRandom,
-    secret_sharing::{Block, SharedValue, Vectorizable, FieldVectorizable},
+    secret_sharing::{Block, SharedValue, FieldVectorizable},
 };
 
 impl Block for u8 {

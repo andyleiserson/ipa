@@ -5,7 +5,7 @@ use crate::{
     ff::Field,
     protocol::{
         context::{Context, UpgradedMaliciousContext},
-        RecordId, prss::FromPrss,
+        RecordId,
     },
     secret_sharing::{replicated::{
         malicious::{AdditiveShare as MaliciousReplicated, ExtendableField},

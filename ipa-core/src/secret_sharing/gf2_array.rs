@@ -9,7 +9,7 @@ use typenum::U1;
 
 use crate::{
     ff::{Gf2, Serializable, boolean::Boolean, Field},
-    secret_sharing::{SharedValue, SharedValueArray, FieldArray}, protocol::prss::{FromPrss, SharedRandomness, FromRandom}, helpers::Message,
+    secret_sharing::{SharedValue, SharedValueArray, FieldArray}, protocol::prss::FromRandom, helpers::Message,
 };
 
 type WORD = u64;
@@ -25,29 +25,27 @@ type WORD = u64;
 pub struct Gf2Array<const WORDS: usize>([WORD; WORDS]);
 
 impl<const N: usize> From<Gf2Array<N>> for [Boolean; N] {
-    fn from(value: Gf2Array<N>) -> Self {
+    fn from(_value: Gf2Array<N>) -> Self {
         todo!()
     }
 }
 
 impl<const N: usize> From<Gf2Array<N>> for [Gf2; N] {
-    fn from(value: Gf2Array<N>) -> Self {
+    fn from(_value: Gf2Array<N>) -> Self {
         todo!()
     }
 }
 
+/*
 // This is necessary because rust can substitute the associated constant in some places where it
 // cannot substitute the type parameter.
 impl<const WORDS: usize> Gf2Array<WORDS> {
     const WORDS: usize = WORDS;
 }
+*/
 
 impl<const WORDS: usize> SharedValueArray<Gf2> for Gf2Array<WORDS> {
     const ZERO: Self = Self([0; WORDS]);
-
-    fn capacity() -> usize {
-        usize::try_from(WORD::BITS).unwrap() * WORDS
-    }
 
     fn index(&self, index: usize) -> Gf2 {
         BitSlice::<_, Lsb0>::from_slice(&self.0)[index].into()
@@ -66,14 +64,14 @@ impl<const WORDS: usize> FieldArray<Boolean> for Gf2Array<WORDS> { }
 
 impl<const WORDS: usize> TryFrom<Vec<Gf2>> for Gf2Array<WORDS> {
     type Error = ();
-    fn try_from(value: Vec<Gf2>) -> Result<Self, Self::Error> {
+    fn try_from(_value: Vec<Gf2>) -> Result<Self, Self::Error> {
         todo!()
     }
 }
 
 impl<const WORDS: usize> TryFrom<Vec<Boolean>> for Gf2Array<WORDS> {
     type Error = ();
-    fn try_from(value: Vec<Boolean>) -> Result<Self, Self::Error> {
+    fn try_from(_value: Vec<Boolean>) -> Result<Self, Self::Error> {
         todo!()
     }
 }
@@ -270,9 +268,9 @@ impl FromRandom for Gf2Array<1> {
     }
 }
 
+/*
 const WORDS_PER_U128: u32 = u128::BITS / WORD::BITS;
 
-/*
 impl<const WORDS: usize> FromPrss for Gf2Array<WORDS> {
     fn from_prss<P: SharedRandomness + ?Sized, I: Into<u128>>(prss: &P, index: I) -> Self {
         let shift: u32 = WORDS.next_multiple_of(WORDS_PER_U128 as usize).next_power_of_two().ilog2();
@@ -306,11 +304,11 @@ impl<const WORDS: usize> FromPrss for Gf2Array<WORDS> {
 impl<const WORDS: usize> Serializable for Gf2Array<WORDS> {
     type Size = U1; // TODO
 
-    fn serialize(&self, buf: &mut GenericArray<u8, Self::Size>) {
+    fn serialize(&self, _buf: &mut GenericArray<u8, Self::Size>) {
         todo!();
     }
 
-    fn deserialize(buf: &GenericArray<u8, Self::Size>) -> Self {
+    fn deserialize(_buf: &GenericArray<u8, Self::Size>) -> Self {
         todo!()
     }
 }

@@ -1,7 +1,6 @@
 use bitvec::{
-    array::BitArray,
-    prelude::{bitarr, BitArr, BitStore, Lsb0},
-    slice::Iter, view::BitViewSized,
+    prelude::{bitarr, BitArr, Lsb0},
+    slice::Iter,
 };
 use generic_array::GenericArray;
 use typenum::{U32, U8};

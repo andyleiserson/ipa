@@ -10,7 +10,7 @@ use typenum::U32;
 use crate::{
     ff::{Field, Serializable, Fp32BitPrime},
     helpers::Message,
-    secret_sharing::{SharedValue, SharedValueArray, Vectorizable, FieldArray}, protocol::prss::{SharedRandomness, FromRandom},
+    secret_sharing::{SharedValue, SharedValueArray, FieldArray}, protocol::prss::FromRandom,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -24,10 +24,6 @@ impl<V: SharedValue, const N: usize> From<StdArray<V, N>> for [V; N] {
 
 impl<V: SharedValue, const N: usize> SharedValueArray<V> for StdArray<V, N> {
     const ZERO: Self = Self([V::ZERO; N]);
-
-    fn capacity() -> usize {
-        N
-    }
 
     fn index(&self, index: usize) -> V {
         self.0[index]
@@ -241,9 +237,9 @@ impl FromRandom for StdArray<Fp32BitPrime, 32> {
     fn len() -> usize { 8 }
 
     fn from_random(src: [u128; 8]) -> Self {
+        // TODO: reduce mod p
         const WORDS_PER_U128: u32 = 4;
         const WORDS: usize = 32;
-        let shift: u32 = WORDS.next_multiple_of(WORDS_PER_U128 as usize).next_power_of_two().ilog2();
         let mut res = Vec::with_capacity(WORDS);
         for word in src {
             for j in 0..WORDS_PER_U128 {

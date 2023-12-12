@@ -1,3 +1,5 @@
+#![allow(unused)] // TODO cleanup
+
 use std::{num::NonZeroU32, ops::Not, pin::pin};
 
 use futures::{stream::iter as stream_iter, TryStreamExt};

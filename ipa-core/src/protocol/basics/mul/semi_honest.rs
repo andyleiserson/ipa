@@ -5,12 +5,12 @@ use crate::{
     protocol::{
         basics::{mul::sparse::MultiplyWork, MultiplyZeroPositions},
         context::Context,
-        prss::{SharedRandomness, FromPrss},
+        prss::SharedRandomness,
         RecordId,
     },
     secret_sharing::{
-        replicated::semi_honest::AdditiveShare as Replicated, FieldArray, SharedValueArray,
-        SharedValueSimd, FieldSimd, SharedValue,
+        replicated::semi_honest::AdditiveShare as Replicated, SharedValueArray,
+        FieldSimd,
     },
 };
 

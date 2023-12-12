@@ -27,7 +27,8 @@ pub use scheme::{Bitwise, Linear, LinearRefOps, SecretSharing};
 
 use crate::{
     ff::{AddSub, AddSubAssign, Field, Serializable, Gf2, boolean::Boolean, Fp32BitPrime},
-    helpers::Message, protocol::prss::{FromPrss, FromRandom},
+    helpers::Message,
+    protocol::prss::FromRandom,
 };
 
 /// Operations supported for weak shared values.
@@ -140,8 +141,6 @@ pub trait SharedValueArray<V: SharedValue>:
 {
     const ZERO: Self;
 
-    fn capacity() -> usize;
-
     fn index(&self, index: usize) -> V;
 
     fn from_item(item: V) -> Self;
@@ -152,8 +151,6 @@ where
     T: SharedValueArray<Gf2> + TryFrom<Vec<Boolean>, Error = ()>,
 {
     const ZERO: Self = <Self as SharedValueArray<Gf2>>::ZERO;
-
-    fn capacity() -> usize { <Self as SharedValueArray<Gf2>>::capacity() }
 
     fn index(&self, index: usize) -> Boolean { <Self as SharedValueArray<Gf2>>::index(self, index).into() }
 

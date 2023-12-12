@@ -1,4 +1,4 @@
-use std::{array, borrow::Borrow, iter::zip, ops::Deref};
+use std::{borrow::Borrow, iter::zip, ops::Deref};
 
 use crate::{
     ff::{Field, PrimeField},
