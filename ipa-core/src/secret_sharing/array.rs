@@ -49,7 +49,6 @@ impl<'a, 'b, V: SharedValue, const N: usize> Add<&'b StdArray<V, N>> for &'a Std
     type Output = StdArray<V, N>;
 
     fn add(self, rhs: &'b StdArray<V, N>) -> Self::Output {
-        //StdArray(self.0.iter().zip(rhs.0.iter()).map(|(a, b)| *a + *b).collect::<Vec<_>>().try_into().unwrap())
         StdArray(array::from_fn(|i| self.0[i] + rhs.0[i]))
     }
 }
@@ -216,12 +215,6 @@ impl<'a, F: Field, const N: usize> Mul<&'a StdArray<F, N>> for StdArray<F, N> {
         StdArray(array::from_fn(|i| self.0[i] * rhs.0[i]))
     }
 }
-
-/*
-impl<V: SharedValue> ArrayFromRandom<N> for StdArray<V, 1> {
-    type T = Self;
-}
-*/
 
 impl<F: SharedValue + FromRandom<Source = [u128; 1]>> FromRandom for StdArray<F, 1> {
     type Source = [u128; 1];

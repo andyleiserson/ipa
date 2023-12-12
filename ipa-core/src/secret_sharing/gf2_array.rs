@@ -268,39 +268,6 @@ impl FromRandom for Gf2Array<1> {
     }
 }
 
-/*
-const WORDS_PER_U128: u32 = u128::BITS / WORD::BITS;
-
-impl<const WORDS: usize> FromPrss for Gf2Array<WORDS> {
-    fn from_prss<P: SharedRandomness + ?Sized, I: Into<u128>>(prss: &P, index: I) -> Self {
-        let shift: u32 = WORDS.next_multiple_of(WORDS_PER_U128 as usize).next_power_of_two().ilog2();
-        let mut res = Vec::with_capacity(WORDS);
-        for i in 0..WORDS.div_ceil(WORDS_PER_U128.try_into().unwrap()) {
-            let value = prss.generate::<u128, _>((index.into() << shift) + i.into());
-            for j in 0..WORDS_PER_U128 {
-                //const WORD_BITS: usize = WORD::BITS as usize;
-                res.push((value >> (j * WORD::BITS)) & WORD::MAX.into());
-            }
-        }
-        res.try_into().unwrap()
-        /*
-        let shift: u32 = WORDS.next_multiple_of(WORDS_PER_U128 as usize).next_power_of_two().ilog2();
-        const PRSS_WORDS: usize = (WORDS_PER_U128 - 1) / WORDS_PER_U128;
-        let index = index.into();
-        Self(array::from_fn(|i| prss.generate((index << shift) + i.into()))
-            .into_iter()
-            .flat_map(|value: [u128; PRSS_WORDS]| {
-                const WORD_BITS: usize = WORD::BITS as usize;
-                array::from_fn(|j| (value >> (j * WORD_BITS)) & WORD::MAX)
-            })
-            .collect::<Vec<_>>()
-            .try_into::<[WORD; WORDS]>()
-            .unwrap())
-        */
-    }
-}
-*/
-
 impl<const WORDS: usize> Serializable for Gf2Array<WORDS> {
     type Size = U1; // TODO
 
