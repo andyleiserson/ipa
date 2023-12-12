@@ -8,7 +8,7 @@ use typenum::{U32, U8};
 use crate::{
     ff::{boolean::Boolean, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{replicated::ReplicatedSecretSharing, FieldVectorizable, Vectorizable, Block, StdArray},
+    secret_sharing::{replicated::ReplicatedSecretSharing, FieldVectorizable, Vectorizable, Block, StdArray, Gf2Array},
 };
 
 /// The implementation below cannot be constrained without breaking Rust's
@@ -100,7 +100,7 @@ macro_rules! boolean_array_impl {
 
             impl SharedValue for $name {
                 type Storage = Store;
-                type Array<const N: usize> = StdArray<$name, N>;
+                //type Array<const N: usize> = StdArray<$name, N>;
                 const BITS: u32 = $bits;
                 const ZERO: Self = Self(<Store>::ZERO);
             }
@@ -150,12 +150,14 @@ macro_rules! boolean_array_impl {
                 }
             }
 
+            /*
             impl Vectorizable<1> for $name {
-                type T = <Self as SharedValue>::Array<1>;
+                type Array = Gf2Array<1, 1>;
             }
+            */
 
             impl FieldVectorizable<1> for $name {
-                type T = <Self as SharedValue>::Array<1>;
+                type Array = Gf2Array<1, 1>;
             }
 
             impl Field for $name {

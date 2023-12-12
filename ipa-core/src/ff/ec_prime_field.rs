@@ -35,7 +35,7 @@ impl Fp25519 {
 ///trait for secret sharing
 impl SharedValue for Fp25519 {
     type Storage = Scalar;
-    type Array<const N: usize> = StdArray<Fp25519, N>;
+    //type Array<const N: usize> = StdArray<Fp25519, N>;
     const BITS: u32 = 256;
     const ZERO: Self = Self(Scalar::ZERO);
 }
@@ -173,12 +173,14 @@ macro_rules! sc_hash_impl {
 #[cfg(test)]
 sc_hash_impl!(u64);
 
+/*
 impl Vectorizable<1> for Fp25519 {
-    type T = <Self as SharedValue>::Array<1>;
+    type Array = StdArray<Self, 1>;
 }
+*/
 
 impl FieldVectorizable<1> for Fp25519 {
-    type T = <Self as SharedValue>::Array<1>;
+    type Array = StdArray<Self, 1>;
 }
 
 ///implement Field because required by PRSS

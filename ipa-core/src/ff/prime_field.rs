@@ -39,17 +39,19 @@ macro_rules! field_impl {
 
         impl SharedValue for $field {
             type Storage = $store;
-            type Array<const N: usize> = crate::secret_sharing::StdArray<$field, N>;
+            //type Array<const N: usize> = crate::secret_sharing::StdArray<$field, N>;
             const BITS: u32 = $bits;
             const ZERO: Self = $field(0);
         }
 
+        /*
         impl Vectorizable<1> for $field {
-            type T = <Self as SharedValue>::Array<1>;
+            type Array = StdArray<$field, 1>;
         }
+        */
 
         impl FieldVectorizable<1> for $field {
-            type T = <Self as SharedValue>::Array<1>;
+            type Array = StdArray<$field, 1>;
         }
 
         impl Field for $field {
@@ -282,11 +284,11 @@ mod fp32bit {
     field_impl! { Fp32BitPrime, u32, 32, 4_294_967_291 }
 
     impl Vectorizable<32> for Fp32BitPrime {
-        type T = StdArray<Fp32BitPrime, 32>;
+        type Array = StdArray<Fp32BitPrime, 32>;
     }
 
     impl FieldVectorizable<32> for Fp32BitPrime {
-        type T = StdArray<Fp32BitPrime, 32>;
+        type Array = StdArray<Fp32BitPrime, 32>;
     }
 
     #[cfg(all(test, unit_test))]

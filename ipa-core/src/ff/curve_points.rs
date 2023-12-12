@@ -31,7 +31,7 @@ pub struct RP25519(CompressedRistretto);
 /// Implementing trait for secret sharing
 impl SharedValue for RP25519 {
     type Storage = CompressedRistretto;
-    type Array<const N: usize> = StdArray<RP25519, N>;
+    //type Array<const N: usize> = StdArray<RP25519, N>;
     const BITS: u32 = 256;
     const ZERO: Self = Self(CompressedRistretto([0_u8; 32]));
 }

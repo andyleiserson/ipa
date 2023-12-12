@@ -19,28 +19,19 @@ use crate::{
 /// `AdditiveShare` holds two out of three shares of an additive secret sharing, either of a single
 /// value with type `V`, or a vector of such values.
 #[derive(Clone, PartialEq, Eq)]
-pub struct AdditiveShare<V: SharedValue + Vectorizable<N>, const N: usize = 1>(<V as Vectorizable<N>>::T, <V as Vectorizable<N>>::T);
+pub struct AdditiveShare<V: SharedValue + Vectorizable<N>, const N: usize = 1>(V::Array, V::Array);
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct ASIterator<T: Iterator>(pub T, pub T);
 
-impl<V: SharedValue, const N: usize> SecretSharing<V> for AdditiveShare<V, N> {
+impl<V: SharedValue + Vectorizable<N>, const N: usize> SecretSharing<V> for AdditiveShare<V, N> {
     const ZERO: Self = Self(V::Array::ZERO, V::Array::ZERO);
 }
 
 impl<F, const N: usize> LinearSecretSharing<F> for AdditiveShare<F, N>
 where
     F: Field,
-    //F::Array<N>: FieldArray<F>,
 {}
-
-/*
-impl<F> LinearSecretSharing<F> for AdditiveShare<F, 1>
-where
-    F: Field,
-    F::Array<1>: FieldArray<F>,
-{}
-*/
 
 impl<V: SharedValue + Debug, const N: usize> Debug for AdditiveShare<V, N> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -56,7 +47,7 @@ impl<V: SharedValue> Default for AdditiveShare<V> {
 
 impl<V: SharedValue, const N: usize> AdditiveShare<V, N> {
     /// Replicated secret share where both left and right values are `V::ZERO`
-    pub const ZERO: Self = Self(V::Array::ZERO, V::Array::ZERO);
+    pub const ZERO: Self = Self(Self::Array::ZERO, Self::Array::ZERO);
 }
 
 impl<V: SharedValue> AdditiveShare<V> {
@@ -79,16 +70,16 @@ impl<V: SharedValue> ReplicatedSecretSharing<V> for AdditiveShare<V> {
     }
 }
 
-impl<V: SharedValue, const N: usize> AdditiveShare<V, N> {
-    pub fn new_arr(a: V::Array<N>, b: V::Array<N>) -> Self {
+impl<V: SharedValue + Vectorizable<N>, const N: usize> AdditiveShare<V, N> {
+    pub fn new_arr(a: <V as Vectorizable<N>>::Array, b: <V as Vectorizable<N>>::Array) -> Self {
         Self(a, b)
     }
 
-    pub fn left_arr(&self) -> &V::Array<N> {
+    pub fn left_arr(&self) -> &<V as Vectorizable<N>>::Array {
         &self.0
     }
 
-    pub fn right_arr(&self) -> &V::Array<N> {
+    pub fn right_arr(&self) -> &<V as Vectorizable<N>>::Array {
         &self.1
     }
 }
@@ -108,15 +99,15 @@ impl BorrowReplicated<bool> for (bool, bool) {
     }
 }
 
-impl BorrowReplicated<Gf2Array<1>> for AdditiveShare<Gf2>
+impl BorrowReplicated<Gf2Array<1, 1>> for AdditiveShare<Gf2>
 where
     Const<1>: WordSize,
 {
-    fn borrow_left(&self) -> &Gf2Array<1> {
+    fn borrow_left(&self) -> &Gf2Array<1, 1> {
         &self.0
     }
 
-    fn borrow_right(&self) -> &Gf2Array<1> {
+    fn borrow_right(&self) -> &Gf2Array<1, 1> {
         &self.1
     }
 }

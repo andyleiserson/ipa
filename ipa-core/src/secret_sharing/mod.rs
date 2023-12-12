@@ -68,7 +68,7 @@ pub trait SharedValue:
     Clone + Copy + Eq + Debug + Send + Sync + Sized + Additive + Serializable + 'static
 {
     type Storage: Block;
-    type Array<const N: usize>: SharedValueArray<Self> + Into<[Self; N]>;
+    //type Array<const N: usize>: SharedValueArray<Self> + Into<[Self; N]>;
 
     const BITS: u32;
 
@@ -83,10 +83,10 @@ pub trait Vectorizable<const N: usize>: SharedValue {
     //     to a compiler limitation.
     //  3. Field vs. SharedValue
     // https://github.com/rust-lang/rust/issues/41118
-    type T: Message + FromRandom + SharedValueArray<Self> + Clone + Eq + Send + Sync;
+    type Array: Message + FromRandom + SharedValueArray<Self> + Clone + Eq + Send + Sync;
 }
 
-pub trait FieldVectorizable<const N: usize>: SharedValue {
+pub trait FieldVectorizable<const N: usize>: Vectorizable<N> {
     // There are two (three?) kinds of bounds here:
     //  1. Bounds that apply to the array type for vectorized operation, but not universally to
     //     `SharedValue::Array`.
@@ -94,7 +94,7 @@ pub trait FieldVectorizable<const N: usize>: SharedValue {
     //     to a compiler limitation.
     //  3. Field vs. SharedValue
     // https://github.com/rust-lang/rust/issues/41118
-    type T: Message + FromRandom + FieldArray<Self> + Clone + Eq + Send + Sync;
+    type Array: Message + FromRandom + FieldArray<Self> + Clone + Eq + Send + Sync;
 }
 
 // The purpose of this trait is to avoid placing a `Message` trait bound on `SharedValueArray`, or
@@ -110,12 +110,15 @@ pub trait SharedValueSimd<const N: usize>: SharedValue { }
 pub trait FieldSimd<const N: usize>:
     Field
     + SharedValueSimd<N>
-    + SharedValue<Array<N> = <Self as FieldVectorizable<N>>::T>
     + FieldVectorizable<N>
 {
 }
 
 impl<F: Field, const N: usize> SharedValueSimd<N> for F { }
+
+impl<V: SharedValue> Vectorizable<1> for V {
+    type Array = V;
+}
 
 impl<F: Field + FieldVectorizable<1>> FieldSimd<1> for F { }
 
@@ -186,7 +189,7 @@ where
 #[cfg(any(test, feature = "test-fixture", feature = "cli"))]
 impl<V, const N: usize> IntoShares<AdditiveShare<V, N>> for [V; N]
 where
-    V: SharedValue,
+    V: SharedValue + Vectorizable<N>,
     Standard: Distribution<V>,
 {
     fn share_with<R: Rng>(self, rng: &mut R) -> [AdditiveShare<V, N>; 3] {

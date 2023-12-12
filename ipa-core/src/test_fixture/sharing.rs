@@ -9,7 +9,7 @@ use crate::{
             semi_honest::AdditiveShare as Replicated,
             ReplicatedSecretSharing,
         },
-        BitDecomposed, SecretSharing,
+        BitDecomposed, SecretSharing, FieldVectorizable,
     },
 };
 
@@ -79,7 +79,7 @@ impl<F: Field> Reconstruct<F> for [Replicated<F>; 3] {
     }
 }
 
-impl<F: Field, const N: usize> ReconstructArr<[F; N]> for [Replicated<F, N>; 3] {
+impl<F: Field + FieldVectorizable<N>, const N: usize> ReconstructArr<[F; N]> for [Replicated<F, N>; 3] {
     fn reconstruct_arr(&self) -> [F; N] {
         let s0l = self[0].left_arr();
         let s0r = self[0].right_arr();

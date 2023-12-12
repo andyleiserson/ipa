@@ -23,7 +23,7 @@ impl Block for u32 {
 ///
 /// Basic functionality (Clone, Eq, Debug) and an addition operation are inherited from `SharedValue`.
 pub trait Field:
-    SharedValue<Array<1> = <Self as FieldVectorizable<1>>::T>
+    SharedValue
     + Mul<Self, Output = Self>
     + MulAssign<Self>
     + FromRandom<Source = [u128; 1]>

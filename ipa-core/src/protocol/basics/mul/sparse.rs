@@ -1,5 +1,5 @@
 use crate::{
-    ff::Field, helpers::Role, secret_sharing::{replicated::semi_honest::AdditiveShare as Replicated, SharedValueSimd, SharedValue},
+    ff::Field, helpers::Role, secret_sharing::{replicated::semi_honest::AdditiveShare as Replicated, SharedValueSimd, SharedValue, Vectorizable},
 };
 
 /// A description of a replicated secret sharing, with zero values at known positions.
@@ -105,24 +105,24 @@ impl ZeroPositions {
     /// # Panics
     /// When the input value includes a non-zero value in a position marked as having a zero.
     #[cfg_attr(not(debug_assertions), allow(unused_variables))]
-    pub fn check<F: Field + SharedValueSimd<N>, const N: usize>(self, role: Role, which: &str, v: &Replicated<F, N>) {
+    pub fn check<V: SharedValue + Vectorizable<N>, const N: usize>(self, role: Role, which: &str, v: &Replicated<V, N>) {
         #[cfg(debug_assertions)]
         {
             use crate::{
-                helpers::Direction::Right, secret_sharing::SharedValueArray,
+                helpers::Direction::Right, secret_sharing::{SharedValueArray, Vectorizable},
             };
 
             let flags = <[bool; 3]>::from(self);
             if flags[role as usize] {
                 assert_eq!(
-                    &<F as SharedValue>::Array::<N>::ZERO,
+                    &<V as Vectorizable<N>>::Array::ZERO,
                     v.left_arr(),
                     "expected a zero on the left for input {which}"
                 );
             }
             if flags[role.peer(Right) as usize] {
                 assert_eq!(
-                    &<F as SharedValue>::Array::<N>::ZERO,
+                    &<V as Vectorizable<N>>::Array::ZERO,
                     v.right_arr(),
                     "expected a zero on the right for input {which}"
                 );
