@@ -1,29 +1,44 @@
 use std::{
     fmt::Debug,
-    ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign}, array,
+    ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign, Div}, array,
 };
 
 use bitvec::prelude::{BitSlice, Lsb0};
-use generic_array::GenericArray;
-use typenum::U1;
+use generic_array::{GenericArray, ArrayLength};
+use typenum::{U1, Const, U63, U64, ToUInt, U};
 
 use crate::{
     ff::{Gf2, Serializable, boolean::Boolean, Field},
     secret_sharing::{SharedValue, SharedValueArray, FieldArray}, protocol::prss::FromRandom, helpers::Message,
 };
 
+pub trait Width: WordSize {}
+
 type WORD = u64;
 
-// Yes, it would be better to calculate this.
-//const WORDS_PER_U128: usize = 4;
+type Words<const BITS: usize> = <<Const<BITS> as Add<U63>>::Output as Div<U64>>::Output;
+
+pub trait WordSize {
+    type Size: ArrayLength;
+}
+
+impl<const N: usize> WordSize for Const<N>
+where
+    Const<N>: ToUInt,
+    U<N>: Add<U63>,
+    <U<N> as Add<U63>>::Output: Div<U64>,
+{
+    type Size = <<U<N> as Add<U63>>::Output as Div<U64>>::Output;
+}
 
 /// An array of values in Gf2.
 ///
 /// Note that the size of the array is specified as a number of words, not a number of bits. This is
 /// necessary because Rust does not support evaluating expressions involving const generics.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Gf2Array<const WORDS: usize>([WORD; WORDS]);
+pub struct Gf2Array<N: Width>(GenericArray<WORD, <N as WordSize>::Size>);
 
+/*
 impl<const N: usize> From<Gf2Array<N>> for [Boolean; N] {
     fn from(_value: Gf2Array<N>) -> Self {
         todo!()
@@ -35,6 +50,7 @@ impl<const N: usize> From<Gf2Array<N>> for [Gf2; N] {
         todo!()
     }
 }
+*/
 
 /*
 // This is necessary because rust can substitute the associated constant in some places where it

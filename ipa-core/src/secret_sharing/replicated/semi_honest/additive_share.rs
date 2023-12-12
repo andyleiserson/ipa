@@ -4,13 +4,13 @@ use std::{
 };
 
 use generic_array::{ArrayLength, GenericArray};
-use typenum::Unsigned;
+use typenum::{Unsigned, Const};
 
 use crate::{
     ff::{boolean::Boolean, ArrayAccess, Expand, Field, GaloisField, Gf2, Serializable, boolean_array::{BAIterator, BA64}, CustomArray},
     secret_sharing::{
         replicated::ReplicatedSecretSharing, FieldArray, Linear as LinearSecretSharing,
-        SecretSharing, SharedValue, SharedValueArray, Gf2Array, FieldSimd,
+        SecretSharing, SharedValue, SharedValueArray, Gf2Array, FieldSimd, gf2_array::WordSize, Vectorizable,
     },
 };
 
@@ -19,7 +19,7 @@ use crate::{
 /// `AdditiveShare` holds two out of three shares of an additive secret sharing, either of a single
 /// value with type `V`, or a vector of such values.
 #[derive(Clone, PartialEq, Eq)]
-pub struct AdditiveShare<V: SharedValue, const N: usize = 1>(V::Array<N>, V::Array<N>);
+pub struct AdditiveShare<V: SharedValue + Vectorizable<N>, const N: usize = 1>(<V as Vectorizable<N>>::T, <V as Vectorizable<N>>::T);
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct ASIterator<T: Iterator>(pub T, pub T);
@@ -108,7 +108,10 @@ impl BorrowReplicated<bool> for (bool, bool) {
     }
 }
 
-impl BorrowReplicated<Gf2Array<1>> for AdditiveShare<Gf2> {
+impl BorrowReplicated<Gf2Array<1>> for AdditiveShare<Gf2>
+where
+    Const<1>: WordSize,
+{
     fn borrow_left(&self) -> &Gf2Array<1> {
         &self.0
     }

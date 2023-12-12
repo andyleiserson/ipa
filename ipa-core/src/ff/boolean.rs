@@ -5,7 +5,7 @@ use super::Gf32Bit;
 use crate::{
     ff::{Field, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{replicated::malicious::ExtendableField, Block, SharedValue, FieldVectorizable, Gf2Array, Vectorizable},
+    secret_sharing::{replicated::malicious::ExtendableField, Block, SharedValue, FieldVectorizable, Gf2Array, Vectorizable, Width},
 };
 
 impl Block for bool {
@@ -26,7 +26,7 @@ impl ExtendableField for Boolean {
 
 impl SharedValue for Boolean {
     type Storage = bool;
-    type Array<const N: usize> = Gf2Array<N>;
+    type Array<N: Width> = Gf2Array<N>;
     const BITS: u32 = 1;
     const ZERO: Self = Self(false);
 }

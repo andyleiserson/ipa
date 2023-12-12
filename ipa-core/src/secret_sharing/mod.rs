@@ -14,7 +14,7 @@ use std::{
 pub use array::StdArray;
 pub use decomposed::BitDecomposed;
 use generic_array::ArrayLength;
-pub use gf2_array::Gf2Array;
+pub use gf2_array::{Gf2Array, Width};
 pub use into_shares::IntoShares;
 #[cfg(any(test, feature = "test-fixture", feature = "cli"))]
 use rand::{
