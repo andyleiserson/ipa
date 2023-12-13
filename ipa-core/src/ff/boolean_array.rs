@@ -154,11 +154,11 @@ macro_rules! boolean_array_impl {
             impl Vectorizable<1> for $name {
                 type Array = Gf2Array<1, 1>;
             }
-            */
 
             impl FieldVectorizable<1> for $name {
-                type Array = Gf2Array<1, 1>;
+                type T = StdArray<$name, 1>;
             }
+            */
 
             impl Field for $name {
                 const ONE: Self = Self(bitarr![const u8, Lsb0; $($one),+]);

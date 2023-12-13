@@ -48,11 +48,11 @@ macro_rules! field_impl {
         impl Vectorizable<1> for $field {
             type Array = StdArray<$field, 1>;
         }
-        */
 
         impl FieldVectorizable<1> for $field {
-            type Array = StdArray<$field, 1>;
+            type T = StdArray<$field, 1>;
         }
+        */
 
         impl Field for $field {
             const ONE: Self = $field(1);
@@ -288,7 +288,7 @@ mod fp32bit {
     }
 
     impl FieldVectorizable<32> for Fp32BitPrime {
-        type Array = StdArray<Fp32BitPrime, 32>;
+        type T = StdArray<Fp32BitPrime, 32>;
     }
 
     #[cfg(all(test, unit_test))]

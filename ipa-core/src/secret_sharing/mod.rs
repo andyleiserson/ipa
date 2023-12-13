@@ -83,10 +83,14 @@ pub trait Vectorizable<const N: usize>: SharedValue {
     //     to a compiler limitation.
     //  3. Field vs. SharedValue
     // https://github.com/rust-lang/rust/issues/41118
-    type Array: Message + FromRandom + SharedValueArray<Self> + Clone + Eq + Send + Sync;
+    type Array: Message + /*FromRandom +*/ SharedValueArray<Self> + Clone + Eq + Send + Sync;
 }
 
-pub trait FieldVectorizable<const N: usize>: Vectorizable<N> {
+// TODO: Question: What to do with this?
+// When SharedValue had the Array associated type, both Vectorizable and FieldVectorizable
+// had an associated type T, which was only used to impose further trait bounds on the array.
+// Now, Vectorizable::Array is the canonical array type.
+pub trait FieldVectorizable<const N: usize>: SharedValue {
     // There are two (three?) kinds of bounds here:
     //  1. Bounds that apply to the array type for vectorized operation, but not universally to
     //     `SharedValue::Array`.
@@ -94,7 +98,7 @@ pub trait FieldVectorizable<const N: usize>: Vectorizable<N> {
     //     to a compiler limitation.
     //  3. Field vs. SharedValue
     // https://github.com/rust-lang/rust/issues/41118
-    type Array: Message + FromRandom + FieldArray<Self> + Clone + Eq + Send + Sync;
+    type T: Message + FromRandom + FieldArray<Self> + Clone + Eq + Send + Sync;
 }
 
 // The purpose of this trait is to avoid placing a `Message` trait bound on `SharedValueArray`, or
@@ -110,6 +114,7 @@ pub trait SharedValueSimd<const N: usize>: SharedValue { }
 pub trait FieldSimd<const N: usize>:
     Field
     + SharedValueSimd<N>
+    + Vectorizable<N>
     + FieldVectorizable<N>
 {
 }
@@ -117,10 +122,22 @@ pub trait FieldSimd<const N: usize>:
 impl<F: Field, const N: usize> SharedValueSimd<N> for F { }
 
 impl<V: SharedValue> Vectorizable<1> for V {
-    type Array = V;
+    type Array = StdArray<V, 1>;
+}
+
+impl<F: Field + Vectorizable<1, Array = StdArray<F, 1>>> FieldVectorizable<1> for F {
+    type T = StdArray<F, 1>;
 }
 
 impl<F: Field + FieldVectorizable<1>> FieldSimd<1> for F { }
+/*
+impl<F> FieldSimd<1> for F
+where
+    F: Field + Vectorizable<1, Array = StdArray<F, 1>> + FieldVectorizable<1, T = StdArray<F, 1>>,
+{
+
+}
+*/
 
 impl FieldSimd<32> for Fp32BitPrime { }
 

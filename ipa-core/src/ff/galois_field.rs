@@ -158,11 +158,11 @@ macro_rules! bit_array_impl {
             impl Vectorizable<1> for $name {
                 type Array = crate::secret_sharing::Gf2Array<1, 1>;
             }
-            */
 
             impl FieldVectorizable<1> for $name {
-                type Array = crate::secret_sharing::Gf2Array<1, 1>;
+                type T = crate::secret_sharing::StdArray<$name, 1>;
             }
+            */
 
             impl Field for $name {
                 const ONE: Self = Self($one);

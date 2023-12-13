@@ -10,7 +10,7 @@ use crate::{
     },
     secret_sharing::{
         replicated::semi_honest::AdditiveShare as Replicated, SharedValueArray,
-        FieldSimd,
+        FieldSimd, Vectorizable,
     },
 };
 
@@ -44,7 +44,7 @@ where
     zeros.1.check(role, "b", b);
 
     // Shared randomness used to mask the values that are sent.
-    let (s0, s1) = ctx.prss().generate::<(F::Array<N>, _), _>(record_id);
+    let (s0, s1) = ctx.prss().generate::<(<F as Vectorizable<N>>::Array, _), _>(record_id);
 
     let mut rhs = a.right_arr().clone() * b.right_arr();
 
@@ -64,7 +64,7 @@ where
     } else {
         debug_assert_eq!(
             a.left_arr().clone() * b.right_arr() + a.right_arr().clone() * b.left_arr(),
-            <F::Array<N> as SharedValueArray<F>>::ZERO
+            <<F as Vectorizable<N>>::Array as SharedValueArray<F>>::ZERO
         );
     }
     // Add randomness to this value whether we sent or not, depending on whether the
@@ -77,7 +77,7 @@ where
     // Sleep until helper on the left sends us their (d_i-1) value.
     let mut lhs = a.left_arr().clone() * b.left_arr();
     if need_to_recv {
-        let left_d: F::Array<N> = ctx.recv_channel(role.peer(Direction::Left))
+        let left_d: <F as Vectorizable<N>>::Array = ctx.recv_channel(role.peer(Direction::Left))
             .receive(record_id)
             .await?;
         lhs += left_d;
