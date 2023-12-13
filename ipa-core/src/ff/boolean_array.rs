@@ -8,7 +8,7 @@ use typenum::{U32, U8};
 use crate::{
     ff::{boolean::Boolean, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{replicated::ReplicatedSecretSharing, FieldVectorizable, Vectorizable, Block, StdArray, Gf2Array},
+    secret_sharing::{replicated::ReplicatedSecretSharing, FieldVectorizable, FieldSimd, Vectorizable, Block, StdArray, Gf2Array},
 };
 
 /// The implementation below cannot be constrained without breaking Rust's
@@ -150,15 +150,15 @@ macro_rules! boolean_array_impl {
                 }
             }
 
-            /*
             impl Vectorizable<1> for $name {
                 type Array = StdArray<$name, 1>;
             }
-            */
 
             impl FieldVectorizable<1> for $name {
                 type T = StdArray<$name, 1>;
             }
+
+            impl FieldSimd<1> for $name { }
 
             impl Field for $name {
                 const ONE: Self = Self(bitarr![const u8, Lsb0; $($one),+]);

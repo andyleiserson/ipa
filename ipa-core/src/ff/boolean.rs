@@ -5,7 +5,7 @@ use super::Gf32Bit;
 use crate::{
     ff::{Field, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{replicated::malicious::ExtendableField, Block, SharedValue, FieldVectorizable, Gf2Array, Vectorizable, StdArray},
+    secret_sharing::{replicated::malicious::ExtendableField, Block, SharedValue, FieldVectorizable, Gf2Array, Vectorizable, StdArray, FieldSimd},
 };
 
 impl Block for bool {
@@ -31,15 +31,15 @@ impl SharedValue for Boolean {
     const ZERO: Self = Self(false);
 }
 
-/*
 impl Vectorizable<1> for Boolean {
     type Array = StdArray<Boolean, 1>;
 }
-*/
 
 impl FieldVectorizable<1> for Boolean {
     type T = StdArray<Boolean, 1>;
 }
+
+impl FieldSimd<1> for Boolean { }
 
 ///conversion to Scalar struct of `curve25519_dalek`
 impl From<Boolean> for bool {

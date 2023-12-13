@@ -7,7 +7,7 @@ use typenum::U32;
 use crate::{
     ff::{boolean_array::BA256, Field, Serializable},
     protocol::prss::FromRandom,
-    secret_sharing::{Block, SharedValue, StdArray, Vectorizable, FieldVectorizable},
+    secret_sharing::{Block, SharedValue, StdArray, Vectorizable, FieldVectorizable, FieldSimd},
 };
 
 impl Block for Scalar {
@@ -173,15 +173,15 @@ macro_rules! sc_hash_impl {
 #[cfg(test)]
 sc_hash_impl!(u64);
 
-/*
 impl Vectorizable<1> for Fp25519 {
     type Array = StdArray<Self, 1>;
 }
-*/
 
 impl FieldVectorizable<1> for Fp25519 {
     type T = StdArray<Self, 1>;
 }
+
+impl FieldSimd<1> for Fp25519 { }
 
 ///implement Field because required by PRSS
 impl Field for Fp25519 {

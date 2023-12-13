@@ -30,7 +30,7 @@ pub trait Field:
     + TryFrom<u128, Error = error::Error>
     + Into<Self::Storage>
     + Vectorizable<1>
-    + FieldVectorizable<1>
+    + FieldVectorizable<1, T = <Self as Vectorizable<1>>::Array>
 {
     /// Multiplicative identity element
     const ONE: Self;
