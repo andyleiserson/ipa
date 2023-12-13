@@ -19,7 +19,7 @@ use crate::{
 /// `AdditiveShare` holds two out of three shares of an additive secret sharing, either of a single
 /// value with type `V`, or a vector of such values.
 #[derive(Clone, PartialEq, Eq)]
-pub struct AdditiveShare<V: SharedValue + Vectorizable<N>, const N: usize = 1>(V::Array, V::Array);
+pub struct AdditiveShare<V: SharedValue + Vectorizable<N>, const N: usize = 1>(<V as Vectorizable<N>>::Array, <V as Vectorizable<N>>::Array);
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct ASIterator<T: Iterator>(pub T, pub T);

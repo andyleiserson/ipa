@@ -8,7 +8,7 @@ use typenum::{U1, U4};
 use crate::{
     error,
     protocol::prss::FromRandom,
-    secret_sharing::{Block, SharedValue, FieldVectorizable},
+    secret_sharing::{Block, SharedValue, FieldVectorizable, Vectorizable},
 };
 
 impl Block for u8 {
@@ -29,6 +29,7 @@ pub trait Field:
     + FromRandom<Source = [u128; 1]>
     + TryFrom<u128, Error = error::Error>
     + Into<Self::Storage>
+    + Vectorizable<1>
     + FieldVectorizable<1>
 {
     /// Multiplicative identity element

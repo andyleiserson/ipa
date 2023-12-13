@@ -48,11 +48,11 @@ macro_rules! field_impl {
         impl Vectorizable<1> for $field {
             type Array = StdArray<$field, 1>;
         }
+        */
 
         impl FieldVectorizable<1> for $field {
             type T = StdArray<$field, 1>;
         }
-        */
 
         impl Field for $field {
             const ONE: Self = $field(1);

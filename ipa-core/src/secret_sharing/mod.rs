@@ -65,7 +65,7 @@ pub trait Block: Sized + Copy + Debug {
 /// (capable of supporting addition and multiplication) is desired, the `Field` trait extends
 /// `SharedValue` to require multiplication.
 pub trait SharedValue:
-    Clone + Copy + Eq + Debug + Send + Sync + Sized + Additive + Serializable + 'static
+    Clone + Copy + Eq + Debug + Send + Sync + Sized + Additive + Serializable + Vectorizable<1> + 'static
 {
     type Storage: Block;
     //type Array<const N: usize>: SharedValueArray<Self> + Into<[Self; N]>;
@@ -75,7 +75,7 @@ pub trait SharedValue:
     const ZERO: Self;
 }
 
-pub trait Vectorizable<const N: usize>: SharedValue {
+pub trait Vectorizable<const N: usize>: Sized {
     // There are two (three?) kinds of bounds here:
     //  1. Bounds that apply to the array type for vectorized operation, but not universally to
     //     `SharedValue::Array`.
@@ -121,18 +121,18 @@ pub trait FieldSimd<const N: usize>:
 
 impl<F: Field, const N: usize> SharedValueSimd<N> for F { }
 
-/*
 impl<V: SharedValue> Vectorizable<1> for V {
     type Array = StdArray<V, 1>;
 }
 
+/*
 impl<F: Field + Vectorizable<1>> FieldVectorizable<1> for F {
     type T = <Self as Vectorizable<1>>::Array;
 }
 */
 
 //impl<F: Field + FieldVectorizable<1>> FieldSimd<1> for F { }
-impl<F: Field + Vectorizable<1> + FieldVectorizable<1>> FieldSimd<1> for F { }
+impl<F: Field + Vectorizable<1, Array = <Self as FieldVectorizable<1>>::T> + FieldVectorizable<1>> FieldSimd<1> for F { }
 /*
 impl<F> FieldSimd<1> for F
 where
@@ -144,7 +144,7 @@ where
 
 impl FieldSimd<32> for Fp32BitPrime { }
 
-pub trait SharedValueArray<V: SharedValue>:
+pub trait SharedValueArray<V>:
     Clone
     + Eq
     + Debug

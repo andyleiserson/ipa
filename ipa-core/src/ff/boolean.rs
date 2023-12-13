@@ -35,11 +35,11 @@ impl SharedValue for Boolean {
 impl Vectorizable<1> for Boolean {
     type Array = StdArray<Boolean, 1>;
 }
+*/
 
 impl FieldVectorizable<1> for Boolean {
     type T = StdArray<Boolean, 1>;
 }
-*/
 
 ///conversion to Scalar struct of `curve25519_dalek`
 impl From<Boolean> for bool {

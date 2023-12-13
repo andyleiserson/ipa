@@ -1,6 +1,9 @@
 use crate::{
-    ff::Field, helpers::Role, secret_sharing::{replicated::semi_honest::AdditiveShare as Replicated, SharedValueSimd, SharedValue, Vectorizable},
+    ff::Field, helpers::Role, secret_sharing::{replicated::semi_honest::AdditiveShare as Replicated, SharedValueSimd, SharedValue},
 };
+
+#[cfg_attr(not(debug_assertions), allow(unused_variables))]
+use crate::secret_sharing::Vectorizable;
 
 /// A description of a replicated secret sharing, with zero values at known positions.
 /// Convention here is to refer to the "left" share available at each helper, with
@@ -109,7 +112,7 @@ impl ZeroPositions {
         #[cfg(debug_assertions)]
         {
             use crate::{
-                helpers::Direction::Right, secret_sharing::{SharedValueArray, Vectorizable},
+                helpers::Direction::Right, secret_sharing::SharedValueArray,
             };
 
             let flags = <[bool; 3]>::from(self);

@@ -177,11 +177,11 @@ sc_hash_impl!(u64);
 impl Vectorizable<1> for Fp25519 {
     type Array = StdArray<Self, 1>;
 }
+*/
 
 impl FieldVectorizable<1> for Fp25519 {
     type T = StdArray<Self, 1>;
 }
-*/
 
 ///implement Field because required by PRSS
 impl Field for Fp25519 {
