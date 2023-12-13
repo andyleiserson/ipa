@@ -179,6 +179,8 @@ impl FieldSimd<256> for Gf2 { }
 
 impl FieldSimd<1024> for Gf2 { }
 
+impl FieldSimd<4096> for Gf2 { }
+
 pub trait SharedValueArray<V>:
     Clone
     + Eq

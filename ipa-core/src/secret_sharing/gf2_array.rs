@@ -5,7 +5,7 @@ use std::{
 
 use bitvec::prelude::{BitSlice, Lsb0};
 use generic_array::{GenericArray, ArrayLength};
-use typenum::{U1, Const, U63, U64, ToUInt, U, U8, U32, U128};
+use typenum::{U1, Const, U63, U64, ToUInt, U, U8, U32, U128, U512};
 
 use crate::{
     ff::{Gf2, Serializable, boolean::Boolean, Field},
@@ -299,12 +299,15 @@ impl FromRandom for Gf2Array<256, 4> {
     type Source = [u128; 2];
     fn len() -> usize { 2 }
     fn from_random(src: Self::Source) -> Self {
-        Self([
-            (src[0] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[0] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-            (src[1] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[1] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-        ])
+        Self(src.into_iter().flat_map(|val| {
+            [
+                (val & u128::from(WORD::MAX)).try_into().unwrap(),
+                ((val >> WORD_SIZE_BITS) & u128::from(WORD::MAX)).try_into().unwrap(),
+            ]
+        })
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap())
     }
 }
 
@@ -312,24 +315,31 @@ impl FromRandom for Gf2Array<1024, 16> {
     type Source = [u128; 8];
     fn len() -> usize { 8 }
     fn from_random(src: Self::Source) -> Self {
-        Self([
-            (src[0] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[0] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-            (src[1] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[1] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-            (src[2] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[2] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-            (src[3] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[3] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-            (src[4] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[4] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-            (src[5] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[5] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-            (src[6] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[6] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-            (src[7] & u128::from(u64::MAX)).try_into().unwrap(),
-            ((src[7] >> 64) & u128::from(u64::MAX)).try_into().unwrap(),
-        ])
+        Self(src.into_iter().flat_map(|val| {
+            [
+                (val & u128::from(WORD::MAX)).try_into().unwrap(),
+                ((val >> WORD_SIZE_BITS) & u128::from(WORD::MAX)).try_into().unwrap(),
+            ]
+        })
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap())
+    }
+}
+
+impl FromRandom for Gf2Array<4096, 64> {
+    type Source = [u128; 32];
+    fn len() -> usize { 32 }
+    fn from_random(src: Self::Source) -> Self {
+        Self(src.into_iter().flat_map(|val| {
+            [
+                (val & u128::from(WORD::MAX)).try_into().unwrap(),
+                ((val >> WORD_SIZE_BITS) & u128::from(WORD::MAX)).try_into().unwrap(),
+            ]
+        })
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap())
     }
 }
 
@@ -370,7 +380,7 @@ impl Serializable for Gf2Array<256, 4> {
         Self(buf
             .chunks(WORD_SIZE_BYTES)
             .map(|chunk| {
-                u64::from_le_bytes(chunk.try_into().unwrap())
+                WORD::from_le_bytes(chunk.try_into().unwrap())
             })
             .collect::<Vec<_>>()
             .try_into()
@@ -392,7 +402,29 @@ impl Serializable for Gf2Array<1024, 16> {
         Self(buf
             .chunks(WORD_SIZE_BYTES)
             .map(|chunk| {
-                u64::from_le_bytes(chunk.try_into().unwrap())
+                WORD::from_le_bytes(chunk.try_into().unwrap())
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
+        )
+    }
+}
+
+impl Serializable for Gf2Array<4096, 64> {
+    type Size = U512;
+
+    fn serialize(&self, buf: &mut GenericArray<u8, Self::Size>) {
+        for (i, chunk) in buf.chunks_mut(WORD_SIZE_BYTES).enumerate() {
+            chunk.copy_from_slice(&self.0[i].to_le_bytes());
+        }
+    }
+
+    fn deserialize(buf: &GenericArray<u8, Self::Size>) -> Self {
+        Self(buf
+            .chunks(WORD_SIZE_BYTES)
+            .map(|chunk| {
+                WORD::from_le_bytes(chunk.try_into().unwrap())
             })
             .collect::<Vec<_>>()
             .try_into()
@@ -406,32 +438,10 @@ where
     Self: Serializable
 { }
 
-impl Into<[Gf2; 64]> for crate::secret_sharing::Gf2Array<64, 1> {
-    fn into(self) -> [Gf2; 64] {
-        (0..64).map(|i| if (self.0[0] >> i) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }).collect::<Vec<_>>().try_into().unwrap()
-    }
-}
-
-impl Into<[Gf2; 256]> for crate::secret_sharing::Gf2Array<256, 4> {
-    fn into(self) -> [Gf2; 256] {
-        let mut res = Vec::with_capacity(256);
-        for i in 0..4 {
-            for j in 0..WORD_SIZE_BITS {
-                if (self.0[i] >> j) & 1 == 1 {
-                    res.push(Gf2::ONE)
-                } else {
-                    res.push(Gf2::ZERO)
-                }
-            }
-        }
-        res.try_into().unwrap()
-    }
-}
-
-impl Into<[Gf2; 1024]> for crate::secret_sharing::Gf2Array<1024, 16> {
-    fn into(self) -> [Gf2; 1024] {
-        let mut res = Vec::with_capacity(1024);
-        for i in 0..16 {
+impl<const BITS: usize, const WORDS: usize> Into<[Gf2; BITS]> for crate::secret_sharing::Gf2Array<BITS, WORDS> {
+    fn into(self) -> [Gf2; BITS] {
+        let mut res = Vec::with_capacity(BITS);
+        for i in 0..WORDS {
             for j in 0..WORD_SIZE_BITS {
                 if (self.0[i] >> j) & 1 == 1 {
                     res.push(Gf2::ONE)

@@ -732,5 +732,13 @@ bit_array_impl!(
         impl FieldVectorizable<1024> for Gf2 {
             type T = crate::secret_sharing::Gf2Array<1024, 16>;
         }
+
+        impl Vectorizable<4096> for Gf2 {
+            type Array = crate::secret_sharing::Gf2Array<4096, 64>;
+        }
+
+        impl FieldVectorizable<4096> for Gf2 {
+            type T = crate::secret_sharing::Gf2Array<4096, 64>;
+        }
     }
 );
