@@ -61,7 +61,7 @@ where
 pub async fn compare_gt<C, F, const N: usize>(
     ctx: C,
     record_id: RecordId,
-    x: &[AdditiveShare<F, N>],
+    x: Vec<AdditiveShare<F, N>>,
     y: &[AdditiveShare<F, N>],
 ) -> Result<AdditiveShare<F, N>, Error>
 where
@@ -148,7 +148,7 @@ where
 async fn subtraction_circuit<C, F, const N: usize>(
     ctx: C,
     record_id: RecordId,
-    x: &[AdditiveShare<F, N>],
+    x: Vec<AdditiveShare<F, N>>,
     y: &[AdditiveShare<F, N>],
     carry: &mut AdditiveShare<F, N>,
 ) -> Result<Vec<AdditiveShare<F, N>>, Error>
@@ -218,6 +218,7 @@ where
 
 #[cfg(all(test, unit_test))]
 mod test {
+    use futures_util::{StreamExt, TryFutureExt, TryStreamExt};
     use rand::Rng;
 
     use crate::{
@@ -231,7 +232,7 @@ mod test {
             context::Context,
             ipa_prf::boolean_ops::comparison_and_subtraction_sequential::{
                 /*compare_geq,*/ compare_gt, /*integer_sat_sub, integer_sub,*/
-            },
+            }, RecordId,
         },
         rand::thread_rng,
         secret_sharing::{
@@ -239,8 +240,9 @@ mod test {
             SharedValue, Gf2Array, IntoShares,
         },
         test_executor::run,
-        test_fixture::{Reconstruct, Runner, TestWorld},
+        test_fixture::{Reconstruct, Runner, TestWorld}, seq_join::{seq_join, SeqJoin},
     };
+    use futures::stream::iter as stream_iter;
 
     /// testing correctness of Not
     /// just because we need it for subtractions
@@ -328,35 +330,50 @@ mod test {
     fn semi_honest_compare_gt() {
         run(|| async move {
             let world = TestWorld::default();
+            const COUNT: usize = 16_384;
 
             let mut rng = thread_rng();
 
-            let records: Vec<BA64> = vec![rng.gen::<BA64>(), rng.gen::<BA64>()];
-            let x = records[0].as_u128();
-            let y = records[1].as_u128();
-            //let x = rng.gen::<Gf2Array<1>>();
-            //let y = rng.gen::<Gf2Array<1>>();
-            let xa = (0..64).map(|i| if (x >> i) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }).collect::<Vec<_>>();
-            let ya = (0..64).map(|i| if (y >> i) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }).collect::<Vec<_>>();
-            //let _ = <Vec<Gf2> as IntoShares<Vec<AdditiveShare<Gf2>>>>::share_with;
+            let mut x = Vec::with_capacity(COUNT);
+            for i in 0..COUNT {
+                x.push(rng.gen::<BA64>());
 
-            let expected = x > y;
+            }
+            let x_int = x.iter().map(|x| x.as_u128()).collect::<Vec<_>>();
+            let y: BA64 = rng.gen::<BA64>();
+            let y_int = y.as_u128();
+            let xa = x_int.clone().into_iter().map(|x| {
+                (0..64).map(move |j| if (x >> j) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO })
+            })
+            .collect::<Vec<_>>();
+            let ya = (0..64).map(|i| if (y_int >> i) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }).collect::<Vec<_>>();
+
+            let expected = x_int.iter().map(|x| *x > y_int).collect::<Vec<_>>();
 
             let result = world
                 .semi_honest((xa.clone().into_iter(), ya.clone().into_iter()), |ctx, (x, y)| async move {
-                    compare_gt(
-                        ctx.set_total_records(1),
-                        protocol::RecordId(0),
-                        &x[..],
-                        &y[..],
+                    let ctx = ctx.set_total_records(x.len());
+                    seq_join(
+                        ctx.active_work(),
+                        stream_iter(x.into_iter().enumerate().map(|(i, x)| {
+                            compare_gt(
+                                ctx.clone(),
+                                RecordId::from(i),
+                                x,
+                                &y[..],
+                            )
+                        }))
                     )
+                    .try_collect::<Vec<AdditiveShare<Gf2>>>()
                     .await
                     .unwrap()
                 })
                 .await
                 .reconstruct();
 
-            assert_eq!(result, <Gf2>::from(expected));
+            for i in 0..COUNT {
+                assert_eq!(result[i], <Gf2>::from(expected[i]));
+            }
 
             /*
             // check that x is not greater than itself
