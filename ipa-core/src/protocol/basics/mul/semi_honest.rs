@@ -10,7 +10,7 @@ use crate::{
     },
     secret_sharing::{
         replicated::semi_honest::AdditiveShare as Replicated, SharedValueArray,
-        FieldSimd, Vectorizable,
+        FieldSimd, Vectorizable, FieldVectorizable,
     },
 };
 
@@ -44,7 +44,7 @@ where
     zeros.1.check(role, "b", b);
 
     // Shared randomness used to mask the values that are sent.
-    let (s0, s1) = ctx.prss().generate::<(<F as Vectorizable<N>>::Array, _), _>(record_id);
+    let (s0, s1) = ctx.prss().generate::<(<F as FieldVectorizable<N>>::T, _), _>(record_id);
 
     let mut rhs = a.right_arr().clone() * b.right_arr();
 

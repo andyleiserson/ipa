@@ -83,7 +83,7 @@ pub trait Vectorizable<const N: usize>: Sized {
     //     to a compiler limitation.
     //  3. Field vs. SharedValue
     // https://github.com/rust-lang/rust/issues/41118
-    type Array: Message + /*FromRandom +*/ SharedValueArray<Self> + Clone + Eq + Send + Sync;
+    type Array: Message + SharedValueArray<Self> + Clone + Eq + Send + Sync;
 }
 
 // TODO: Question: What to do with this?
@@ -98,7 +98,8 @@ pub trait FieldVectorizable<const N: usize>: SharedValue {
     //     to a compiler limitation.
     //  3. Field vs. SharedValue
     // https://github.com/rust-lang/rust/issues/41118
-    type T: Message + FromRandom + FieldArray<Self> + Clone + Eq + Send + Sync;
+    type T: Message + FromRandom + FieldArray<Self> + Into<[Self; N]> + Clone + Eq + Send + Sync;
+    // TODO: do we really want the Into bound here?
 }
 
 // The purpose of this trait is to avoid placing a `Message` trait bound on `SharedValueArray`, or
@@ -114,8 +115,8 @@ pub trait SharedValueSimd<const N: usize>: SharedValue { }
 pub trait FieldSimd<const N: usize>:
     Field
     + SharedValueSimd<N>
-    + Vectorizable<N>
-    + FieldVectorizable<N, T = <Self as Vectorizable<N>>::Array>
+    + Vectorizable<N, Array = <Self as FieldVectorizable<N>>::T>
+    + FieldVectorizable<N>
 {
 }
 

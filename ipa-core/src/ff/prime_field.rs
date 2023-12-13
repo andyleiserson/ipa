@@ -4,7 +4,7 @@ use super::Field;
 use crate::{
     ff::Serializable,
     protocol::prss::FromRandom,
-    secret_sharing::{FieldVectorizable, Vectorizable, Block, SharedValue, StdArray, FieldSimd},
+    secret_sharing::{FieldVectorizable, Vectorizable, Block, SharedValue, StdArray},
 };
 
 pub trait PrimeField: Field {
@@ -51,8 +51,6 @@ macro_rules! field_impl {
         impl FieldVectorizable<1> for $field {
             type T = StdArray<$field, 1>;
         }
-
-        impl FieldSimd<1> for $field { }
 
         impl Field for $field {
             const ONE: Self = $field(1);

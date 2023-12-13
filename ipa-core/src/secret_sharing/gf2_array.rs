@@ -5,7 +5,7 @@ use std::{
 
 use bitvec::prelude::{BitSlice, Lsb0};
 use generic_array::{GenericArray, ArrayLength};
-use typenum::{U1, Const, U63, U64, ToUInt, U};
+use typenum::{U1, Const, U63, U64, ToUInt, U, U8};
 
 use crate::{
     ff::{Gf2, Serializable, boolean::Boolean, Field},
@@ -27,6 +27,7 @@ where
     Const<N>: ToUInt,
     U<N>: Add<U63>,
     <U<N> as Add<U63>>::Output: Div<U64>,
+    <<U<N> as Add<U63>>::Output as Div<U64>>::Output: ArrayLength,
 {
     type Size = <<U<N> as Add<U63>>::Output as Div<U64>>::Output;
 }
@@ -284,16 +285,31 @@ impl FromRandom for Gf2Array<1, 1> {
     }
 }
 
-impl<const BITS: usize, const WORDS: usize> Serializable for Gf2Array<BITS, WORDS> {
-    type Size = U1; // TODO
+impl Serializable for Gf2Array<1, 1> {
+    type Size = U1;
 
-    fn serialize(&self, _buf: &mut GenericArray<u8, Self::Size>) {
-        todo!();
+    fn serialize(&self, buf: &mut GenericArray<u8, Self::Size>) {
+        buf[0] = self.0[0].to_le_bytes()[0];
     }
 
-    fn deserialize(_buf: &GenericArray<u8, Self::Size>) -> Self {
-        todo!()
+    fn deserialize(buf: &GenericArray<u8, Self::Size>) -> Self {
+        Self([(buf[0] & 1).into()])
     }
 }
 
-impl<const BITS: usize, const WORDS: usize> Message for Gf2Array<BITS, WORDS> { }
+impl Serializable for Gf2Array<64, 1> {
+    type Size = U8;
+
+    fn serialize(&self, buf: &mut GenericArray<u8, Self::Size>) {
+        buf.copy_from_slice(&self.0[0].to_le_bytes());
+    }
+
+    fn deserialize(buf: &GenericArray<u8, Self::Size>) -> Self {
+        Self([u64::from_le_bytes(<[u8; 8]>::from(*buf))])
+    }
+}
+
+impl<const BITS: usize, const WORDS: usize> Message for Gf2Array<BITS, WORDS>
+where
+    Self: Serializable
+{ }

@@ -181,8 +181,6 @@ impl FieldVectorizable<1> for Fp25519 {
     type T = StdArray<Self, 1>;
 }
 
-impl FieldSimd<1> for Fp25519 { }
-
 ///implement Field because required by PRSS
 impl Field for Fp25519 {
     const ONE: Fp25519 = Fp25519::ONE;

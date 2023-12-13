@@ -10,7 +10,7 @@ use crate::{
     ff::{boolean::Boolean, ArrayAccess, Expand, Field, GaloisField, Gf2, Serializable, boolean_array::{BAIterator, BA64}, CustomArray},
     secret_sharing::{
         replicated::ReplicatedSecretSharing, FieldArray, Linear as LinearSecretSharing,
-        SecretSharing, SharedValue, SharedValueArray, Gf2Array, FieldSimd, gf2_array::WordSize, Vectorizable, FieldVectorizable,
+        SecretSharing, SharedValue, SharedValueArray, Gf2Array, FieldSimd, gf2_array::WordSize, Vectorizable, FieldVectorizable, StdArray,
     },
 };
 
@@ -25,7 +25,7 @@ pub struct AdditiveShare<V: SharedValue + Vectorizable<N>, const N: usize = 1>(<
 pub struct ASIterator<T: Iterator>(pub T, pub T);
 
 impl<V: SharedValue + Vectorizable<N>, const N: usize> SecretSharing<V> for AdditiveShare<V, N> {
-    const ZERO: Self = Self(V::Array::ZERO, V::Array::ZERO);
+    const ZERO: Self = Self(<V as Vectorizable<N>>::Array::ZERO, <V as Vectorizable<N>>::Array::ZERO);
 }
 
 impl<F, const N: usize> LinearSecretSharing<F> for AdditiveShare<F, N>
@@ -47,7 +47,7 @@ impl<V: SharedValue> Default for AdditiveShare<V> {
 
 impl<V: SharedValue + Vectorizable<N>, const N: usize> AdditiveShare<V, N> {
     /// Replicated secret share where both left and right values are `V::ZERO`
-    pub const ZERO: Self = Self(Self::Array::ZERO, Self::Array::ZERO);
+    pub const ZERO: Self = Self(<V as Vectorizable<N>>::Array::ZERO, <V as Vectorizable<N>>::Array::ZERO);
 }
 
 impl<V: SharedValue> AdditiveShare<V> {
@@ -99,15 +99,12 @@ impl BorrowReplicated<bool> for (bool, bool) {
     }
 }
 
-impl BorrowReplicated<Gf2Array<1, 1>> for AdditiveShare<Gf2>
-where
-    Const<1>: WordSize,
-{
-    fn borrow_left(&self) -> &Gf2Array<1, 1> {
+impl BorrowReplicated<StdArray<Gf2, 1>> for AdditiveShare<Gf2> {
+    fn borrow_left(&self) -> &StdArray<Gf2, 1> {
         &self.0
     }
 
-    fn borrow_right(&self) -> &Gf2Array<1, 1> {
+    fn borrow_right(&self) -> &StdArray<Gf2, 1> {
         &self.1
     }
 }
