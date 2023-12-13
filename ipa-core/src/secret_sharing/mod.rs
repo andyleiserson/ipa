@@ -75,6 +75,40 @@ pub trait SharedValue:
     const ZERO: Self;
 }
 
+// # Vectorization
+//
+// Vectorization refers to adapting an implementation that previously operated on one value at a
+// time, to instead operate on `N` values at a time. Vectorization improves performance in two ways:
+//
+//  1. Vectorized code can make use of special CPU instructions (Intel AVX, ARM NEON) that operate
+//     on multiple values at a time. This reduces the CPU time required to perform computations.
+//     We also use vectorization to refer to "bit packing" of boolean values, i.e., packing
+//     64 boolean values into a single u64 rather than using a byte (or even a word) for each
+//     value.
+//  2. Aside from the core arithmetic operations that are involved in our MPC, a substantial
+//     amount of other code is needed to send values between helpers, schedule futures for
+//     execution, etc. Vectorization can result in a greater amount of arithmetic work being
+//     performed for a given amount of overhead work, thus increasing the efficiency of the
+//     implementation.
+//
+// ## Vectorization traits
+//
+// There are two sets of traits related to vectorization.
+//
+// If you are writing protocols, the traits of interest are `SharedValueSimd<N>` and `FieldSimd<N>`.
+// These can be specified in a trait bound, something like `F: Field + FieldSimd<N>`.
+//
+// The other traits are `Vectorizable` (for `SharedValue`s) and `FieldVectorizable`. These traits
+// are needed to work around a limitation in the rust type system.
+//
+// ## Adding a new supported vectorization
+//
+// Currently, each vectorization configuration (combination of data type being vectorized and
+// vectorization width) must be explicitly implemented. The primary reason this is necessary
+// is that Rust doesn't yet support evaluating expressions involving const parameters at compile
+// time.
+
+/// Trait for `SharedValue`s supporting operations on `N`-wide vectors.
 pub trait Vectorizable<const N: usize>: Sized {
     // There are two (three?) kinds of bounds here:
     //  1. Bounds that apply to the array type for vectorized operation, but not universally to
@@ -90,6 +124,7 @@ pub trait Vectorizable<const N: usize>: Sized {
 // When SharedValue had the Array associated type, both Vectorizable and FieldVectorizable
 // had an associated type T, which was only used to impose further trait bounds on the array.
 // Now, Vectorizable::Array is the canonical array type.
+/// Trait for `Field`s supporting operations on `N`-wide vectors.
 pub trait FieldVectorizable<const N: usize>: SharedValue {
     // There are two (three?) kinds of bounds here:
     //  1. Bounds that apply to the array type for vectorized operation, but not universally to
@@ -120,28 +155,15 @@ pub trait FieldSimd<const N: usize>:
 {
 }
 
+// Portions of the implementation treat non-vectorized operations as a vector with `N = 1`.
+// These blanket impls are important in allowing code that writes `F: Field` to continue
+// working without modification.
+
 impl<F: Field, const N: usize> SharedValueSimd<N> for F { }
 
-/*
-impl<V: SharedValue> Vectorizable<1> for V {
-    type Array = StdArray<V, 1>;
-}
-
-impl<F: Field + Vectorizable<1>> FieldVectorizable<1> for F {
-    type T = <Self as Vectorizable<1>>::Array;
-}
-*/
-
-//impl<F: Field + FieldVectorizable<1>> FieldSimd<1> for F { }
 impl<F: Field + Vectorizable<1> + FieldVectorizable<1, T = <Self as Vectorizable<1>>::Array>> FieldSimd<1> for F { }
-/*
-impl<F> FieldSimd<1> for F
-where
-    F: Field + Vectorizable<1, Array = StdArray<F, 1>> + FieldVectorizable<1, T = StdArray<F, 1>>,
-{
 
-}
-*/
+// Supported vectorizations
 
 impl FieldSimd<32> for Fp32BitPrime { }
 

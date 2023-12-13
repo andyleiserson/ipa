@@ -361,6 +361,7 @@ mod test {
             let xa_iter = xa.clone().into_iter().map(IntoIterator::into_iter);
             let result = world
                 .semi_honest((xa_iter, ya.clone().into_iter()), |ctx, (x, y): (Vec<Vec<AdditiveShare<Gf2, 64>>>, Vec<AdditiveShare<Gf2, 64>>)| async move {
+                    println!("Processing {} records", x.len());
                     let begin = Instant::now();
                     let ctx = ctx.set_total_records(x.len());
                     let res = seq_join(
@@ -389,7 +390,6 @@ mod test {
 
 
             for i in 0..COUNT {
-                println!("{i}");
                 assert_eq!(observed[i], <Gf2>::from(expected[i]));
             }
 
