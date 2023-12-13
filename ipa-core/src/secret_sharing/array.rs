@@ -8,7 +8,7 @@ use generic_array::{ArrayLength, GenericArray};
 use typenum::U32;
 
 use crate::{
-    ff::{Field, Serializable, Fp32BitPrime},
+    ff::{Field, Serializable, Fp32BitPrime, boolean::Boolean, boolean_array::BA64},
     helpers::Message,
     secret_sharing::{SharedValue, SharedValueArray, FieldArray}, protocol::prss::FromRandom,
 };
@@ -213,6 +213,29 @@ impl<'a, F: Field, const N: usize> Mul<&'a StdArray<F, N>> for StdArray<F, N> {
 
     fn mul(self, rhs: &'a StdArray<F, N>) -> Self::Output {
         StdArray(array::from_fn(|i| self.0[i] * rhs.0[i]))
+    }
+}
+
+impl<const N: usize> std::ops::Not for StdArray<Boolean, N> {
+    type Output = StdArray<Boolean, N>;
+
+    fn not(self) -> Self::Output {
+        StdArray(
+            self.0
+                .iter()
+                .map(|x| !*x)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+        )
+    }
+}
+
+impl std::ops::Not for StdArray<BA64, 1> {
+    type Output = StdArray<BA64, 1>;
+
+    fn not(self) -> Self::Output {
+        StdArray([!self.0[0]])
     }
 }
 

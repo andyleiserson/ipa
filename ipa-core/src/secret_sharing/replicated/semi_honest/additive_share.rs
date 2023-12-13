@@ -10,7 +10,7 @@ use crate::{
     ff::{boolean::Boolean, ArrayAccess, Expand, Field, GaloisField, Gf2, Serializable, boolean_array::{BAIterator, BA64}, CustomArray},
     secret_sharing::{
         replicated::ReplicatedSecretSharing, FieldArray, Linear as LinearSecretSharing,
-        SecretSharing, SharedValue, SharedValueArray, Gf2Array, FieldSimd, gf2_array::WordSize, Vectorizable, FieldVectorizable, StdArray,
+        SecretSharing, SharedValue, SharedValueArray, Gf2Array, FieldSimd, Vectorizable, FieldVectorizable, StdArray,
     },
 };
 
@@ -335,19 +335,11 @@ impl<V: SharedValue> From<(V, V)> for AdditiveShare<V> {
     }
 }
 
-// TODO: vectorize
-impl<V: std::ops::Not<Output = V> + SharedValue> std::ops::Not for AdditiveShare<V> {
-    type Output = Self;
-
-    fn not(self) -> Self::Output {
-        AdditiveShare(
-            V::Array::from_item(!(self.0.index(0))),
-            V::Array::from_item(!(self.1.index(0))),
-        )
-    }
-}
-
-impl std::ops::Not for AdditiveShare<Gf2, 64> {
+impl<V, const N: usize> std::ops::Not for AdditiveShare<V, N>
+where
+    V: SharedValue + Vectorizable<N>,
+    <V as Vectorizable<N>>::Array: std::ops::Not<Output = <V as Vectorizable<N>>::Array>,
+{
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -357,6 +349,19 @@ impl std::ops::Not for AdditiveShare<Gf2, 64> {
         )
     }
 }
+
+/*
+impl<const N: usize> std::ops::Not for AdditiveShare<Gf2, N> {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        AdditiveShare(
+            !self.0,
+            !self.1,
+        )
+    }
+}
+*/
 
 impl<V: SharedValue> Serializable for AdditiveShare<V>
 where

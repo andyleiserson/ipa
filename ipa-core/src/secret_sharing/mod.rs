@@ -2,7 +2,7 @@ pub mod replicated;
 
 mod array;
 mod decomposed;
-mod gf2_array;
+pub mod gf2_array; // TODO
 mod into_shares;
 mod scheme;
 
@@ -14,7 +14,7 @@ use std::{
 pub use array::StdArray;
 pub use decomposed::BitDecomposed;
 use generic_array::ArrayLength;
-pub use gf2_array::{Gf2Array, Width};
+pub use gf2_array::Gf2Array;
 pub use into_shares::IntoShares;
 #[cfg(any(test, feature = "test-fixture", feature = "cli"))]
 use rand::{
@@ -107,6 +107,12 @@ pub trait SharedValue:
 // vectorization width) must be explicitly implemented. The primary reason this is necessary
 // is that Rust doesn't yet support evaluating expressions involving const parameters at compile
 // time.
+//
+//  1. Add `FieldSimd` impl (secret_sharing/mod.rs)
+//  2. Add `FromRandom` impl (array.rs or gf2_array.rs)
+//  3. Add `Serializable` impl (array.rs or gf2_array.rs)
+//  4. Add `Into<[Gf2; N]>` impl (array.rs or gf2_array.rs)
+//  4. Add `Vectorizable` and `FieldVectorizable` impl (primitive type def e.g. galois_field.rs)
 
 /// Trait for `SharedValue`s supporting operations on `N`-wide vectors.
 pub trait Vectorizable<const N: usize>: Sized {
@@ -168,6 +174,10 @@ impl<F: Field + Vectorizable<1> + FieldVectorizable<1, T = <Self as Vectorizable
 impl FieldSimd<32> for Fp32BitPrime { }
 
 impl FieldSimd<64> for Gf2 { }
+
+impl FieldSimd<256> for Gf2 { }
+
+impl FieldSimd<1024> for Gf2 { }
 
 pub trait SharedValueArray<V>:
     Clone

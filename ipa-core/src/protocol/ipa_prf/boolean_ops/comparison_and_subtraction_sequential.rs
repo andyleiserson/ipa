@@ -239,7 +239,7 @@ mod test {
         rand::thread_rng,
         secret_sharing::{
             replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing},
-            SharedValue, Gf2Array, IntoShares,
+            SharedValue, Gf2Array, gf2_array, IntoShares,
         },
         test_executor::run,
         test_fixture::{Reconstruct, Runner, TestWorld, ReconstructArr}, seq_join::{seq_join, SeqJoin},
@@ -337,37 +337,39 @@ mod test {
             let mut rng = thread_rng();
 
             let mut x = Vec::with_capacity(COUNT);
-            for i in 0..COUNT {
+            for _ in 0..COUNT {
                 x.push(rng.gen::<BA64>());
 
             }
+            const N: usize = 1024;
+            const CMP_BITS: usize = 64;
             let x_int: Vec<u64> = x.iter().map(|x| x.as_u128().try_into().unwrap()).collect::<Vec<_>>();
             let y: BA64 = rng.gen::<BA64>();
             let y_int: u64 = y.as_u128().try_into().unwrap();
-            let xa: Vec<Vec<[Gf2; 64]>> = x_int.chunks(64).map(|x| {
-                (0..64).map(move |bit| {
+            let xa: Vec<Vec<[Gf2; N]>> = x_int.chunks(N).map(|x| {
+                (0..CMP_BITS).map(move |bit| {
                     array::from_fn(|rec| {
                         if (x[rec] >> bit) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }
                     })
                 }).collect::<Vec<_>>().try_into().unwrap()
             })
             .collect::<Vec<_>>();
-            let ya: Vec<[Gf2; 64]> = (0..64).map(|i| {
-                if (y_int >> i) & 1 == 1 { [Gf2::ONE; 64] } else { [Gf2::ZERO; 64] }
+            let ya: Vec<[Gf2; N]> = (0..CMP_BITS).map(|i| {
+                if (y_int >> i) & 1 == 1 { [Gf2::ONE; N] } else { [Gf2::ZERO; N] }
             }).collect::<Vec<_>>();
 
             let expected = x_int.iter().map(|x| *x > y_int).collect::<Vec<_>>();
 
             let xa_iter = xa.clone().into_iter().map(IntoIterator::into_iter);
             let result = world
-                .semi_honest((xa_iter, ya.clone().into_iter()), |ctx, (x, y): (Vec<Vec<AdditiveShare<Gf2, 64>>>, Vec<AdditiveShare<Gf2, 64>>)| async move {
+                .semi_honest((xa_iter, ya.clone().into_iter()), |ctx, (x, y): (Vec<Vec<AdditiveShare<Gf2, N>>>, Vec<AdditiveShare<Gf2, N>>)| async move {
                     println!("Processing {} records", x.len());
                     let begin = Instant::now();
                     let ctx = ctx.set_total_records(x.len());
                     let res = seq_join(
                         ctx.active_work(),
                         stream_iter(x.into_iter().enumerate().map(|(i, x)| {
-                            compare_gt::<_, _, 64>(
+                            compare_gt::<_, _, N>(
                                 ctx.clone(),
                                 RecordId::from(i),
                                 x,
@@ -375,7 +377,7 @@ mod test {
                             )
                         }))
                     )
-                    .try_collect::<Vec<AdditiveShare<Gf2, 64>>>()
+                    .try_collect::<Vec<AdditiveShare<Gf2, N>>>()
                     .await
                     .unwrap();
                     tracing::info!("Execution time: {:?}", begin.elapsed());
@@ -390,6 +392,7 @@ mod test {
 
 
             for i in 0..COUNT {
+                //println!("{i}");
                 assert_eq!(observed[i], <Gf2>::from(expected[i]));
             }
 
