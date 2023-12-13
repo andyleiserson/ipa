@@ -115,21 +115,24 @@ pub trait FieldSimd<const N: usize>:
     Field
     + SharedValueSimd<N>
     + Vectorizable<N>
-    + FieldVectorizable<N>
+    + FieldVectorizable<N, T = <Self as Vectorizable<N>>::Array>
 {
 }
 
 impl<F: Field, const N: usize> SharedValueSimd<N> for F { }
 
+/*
 impl<V: SharedValue> Vectorizable<1> for V {
     type Array = StdArray<V, 1>;
 }
 
-impl<F: Field + Vectorizable<1, Array = StdArray<F, 1>>> FieldVectorizable<1> for F {
-    type T = StdArray<F, 1>;
+impl<F: Field + Vectorizable<1>> FieldVectorizable<1> for F {
+    type T = <Self as Vectorizable<1>>::Array;
 }
+*/
 
-impl<F: Field + FieldVectorizable<1>> FieldSimd<1> for F { }
+//impl<F: Field + FieldVectorizable<1>> FieldSimd<1> for F { }
+impl<F: Field + Vectorizable<1> + FieldVectorizable<1>> FieldSimd<1> for F { }
 /*
 impl<F> FieldSimd<1> for F
 where
