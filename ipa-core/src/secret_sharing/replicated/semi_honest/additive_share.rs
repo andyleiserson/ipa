@@ -347,6 +347,17 @@ impl<V: std::ops::Not<Output = V> + SharedValue> std::ops::Not for AdditiveShare
     }
 }
 
+impl std::ops::Not for AdditiveShare<Gf2, 64> {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        AdditiveShare(
+            !self.0,
+            !self.1,
+        )
+    }
+}
+
 impl<V: SharedValue> Serializable for AdditiveShare<V>
 where
     V::Size: Add<V::Size>,

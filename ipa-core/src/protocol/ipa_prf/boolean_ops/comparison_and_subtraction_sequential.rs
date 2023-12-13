@@ -218,6 +218,8 @@ where
 
 #[cfg(all(test, unit_test))]
 mod test {
+    use std::{iter::{repeat, Iterator}, array, time::Instant};
+
     use futures_util::{StreamExt, TryFutureExt, TryStreamExt};
     use rand::Rng;
 
@@ -229,7 +231,7 @@ mod test {
         },
         protocol,
         protocol::{
-            context::Context,
+            context::{Context, SemiHonestContext},
             ipa_prf::boolean_ops::comparison_and_subtraction_sequential::{
                 /*compare_geq,*/ compare_gt, /*integer_sat_sub, integer_sub,*/
             }, RecordId,
@@ -240,7 +242,7 @@ mod test {
             SharedValue, Gf2Array, IntoShares,
         },
         test_executor::run,
-        test_fixture::{Reconstruct, Runner, TestWorld}, seq_join::{seq_join, SeqJoin},
+        test_fixture::{Reconstruct, Runner, TestWorld, ReconstructArr}, seq_join::{seq_join, SeqJoin},
     };
     use futures::stream::iter as stream_iter;
 
@@ -330,7 +332,7 @@ mod test {
     fn semi_honest_compare_gt() {
         run(|| async move {
             let world = TestWorld::default();
-            const COUNT: usize = 16_384;
+            const COUNT: usize = 131_072;
 
             let mut rng = thread_rng();
 
@@ -339,24 +341,32 @@ mod test {
                 x.push(rng.gen::<BA64>());
 
             }
-            let x_int = x.iter().map(|x| x.as_u128()).collect::<Vec<_>>();
+            let x_int: Vec<u64> = x.iter().map(|x| x.as_u128().try_into().unwrap()).collect::<Vec<_>>();
             let y: BA64 = rng.gen::<BA64>();
-            let y_int = y.as_u128();
-            let xa = x_int.clone().into_iter().map(|x| {
-                (0..64).map(move |j| if (x >> j) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO })
+            let y_int: u64 = y.as_u128().try_into().unwrap();
+            let xa: Vec<Vec<[Gf2; 64]>> = x_int.chunks(64).map(|x| {
+                (0..64).map(move |bit| {
+                    array::from_fn(|rec| {
+                        if (x[rec] >> bit) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }
+                    })
+                }).collect::<Vec<_>>().try_into().unwrap()
             })
             .collect::<Vec<_>>();
-            let ya = (0..64).map(|i| if (y_int >> i) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }).collect::<Vec<_>>();
+            let ya: Vec<[Gf2; 64]> = (0..64).map(|i| {
+                if (y_int >> i) & 1 == 1 { [Gf2::ONE; 64] } else { [Gf2::ZERO; 64] }
+            }).collect::<Vec<_>>();
 
             let expected = x_int.iter().map(|x| *x > y_int).collect::<Vec<_>>();
 
+            let xa_iter = xa.clone().into_iter().map(IntoIterator::into_iter);
             let result = world
-                .semi_honest((xa.clone().into_iter(), ya.clone().into_iter()), |ctx, (x, y)| async move {
+                .semi_honest((xa_iter, ya.clone().into_iter()), |ctx, (x, y): (Vec<Vec<AdditiveShare<Gf2, 64>>>, Vec<AdditiveShare<Gf2, 64>>)| async move {
+                    let begin = Instant::now();
                     let ctx = ctx.set_total_records(x.len());
-                    seq_join(
+                    let res = seq_join(
                         ctx.active_work(),
                         stream_iter(x.into_iter().enumerate().map(|(i, x)| {
-                            compare_gt(
+                            compare_gt::<_, _, 64>(
                                 ctx.clone(),
                                 RecordId::from(i),
                                 x,
@@ -364,15 +374,23 @@ mod test {
                             )
                         }))
                     )
-                    .try_collect::<Vec<AdditiveShare<Gf2>>>()
+                    .try_collect::<Vec<AdditiveShare<Gf2, 64>>>()
                     .await
-                    .unwrap()
+                    .unwrap();
+                    tracing::info!("Execution time: {:?}", begin.elapsed());
+                    res
                 })
-                .await
-                .reconstruct();
+                .await;
+
+            let [r0, r1, r2] = result;
+            let observed = (0..r0.len()).flat_map(|i| {
+                [r0[i].clone(), r1[i].clone(), r2[i].clone()].reconstruct_arr().to_vec()
+            }).collect::<Vec<_>>();
+
 
             for i in 0..COUNT {
-                assert_eq!(result[i], <Gf2>::from(expected[i]));
+                println!("{i}");
+                assert_eq!(observed[i], <Gf2>::from(expected[i]));
             }
 
             /*

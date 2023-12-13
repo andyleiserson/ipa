@@ -708,5 +708,14 @@ bit_array_impl!(
                 (!bool::from(self)).into()
             }
         }
+
+        impl Vectorizable<64> for Gf2 {
+            type Array = crate::secret_sharing::Gf2Array<64, 1>;
+        }
+
+        impl FieldVectorizable<64> for Gf2 {
+            type T = crate::secret_sharing::Gf2Array<64, 1>;
+        }
+
     }
 );

@@ -81,8 +81,13 @@ impl<const BITS: usize, const WORDS: usize> FieldArray<Boolean> for Gf2Array<BIT
 
 impl<const BITS: usize, const WORDS: usize> TryFrom<Vec<Gf2>> for Gf2Array<BITS, WORDS> {
     type Error = ();
-    fn try_from(_value: Vec<Gf2>) -> Result<Self, Self::Error> {
-        todo!()
+    fn try_from(value: Vec<Gf2>) -> Result<Self, Self::Error> {
+        assert_eq!(value.len(), BITS);
+        let mut res = 0u64;
+        for (i, v) in value.into_iter().enumerate() {
+            res |= u64::try_from(v.as_u128()).unwrap() << i;
+        }
+        Ok(Self(vec![res].try_into().unwrap()))
     }
 }
 
@@ -152,14 +157,7 @@ impl<const BITS: usize, const WORDS: usize> Neg for &Gf2Array<BITS, WORDS> {
     type Output = Gf2Array<BITS, WORDS>;
 
     fn neg(self) -> Self::Output {
-        Gf2Array(
-            self.0
-                .iter()
-                .map(|x| !*x)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap(),
-        )
+        self.clone()
     }
 }
 
@@ -179,7 +177,7 @@ impl<const BITS: usize, const WORDS: usize> Sub<Self> for &Gf2Array<BITS, WORDS>
             self.0
                 .iter()
                 .zip(rhs.0.iter())
-                .map(|(a, b)| *a - *b)
+                .map(|(a, b)| *a ^ *b)
                 .collect::<Vec<_>>()
                 .try_into()
                 .unwrap(),
@@ -214,7 +212,7 @@ impl<const BITS: usize, const WORDS: usize> Sub<Gf2Array<BITS, WORDS>> for &Gf2A
 impl<const BITS: usize, const WORDS: usize> SubAssign<&Self> for Gf2Array<BITS, WORDS> {
     fn sub_assign(&mut self, rhs: &Self) {
         for (a, b) in self.0.iter_mut().zip(rhs.0.iter()) {
-            *a -= *b;
+            *a ^= *b;
         }
     }
 }
@@ -277,11 +275,34 @@ impl<'a, const BITS: usize, const WORDS: usize> Mul<&'a Gf2Array<BITS, WORDS>> f
     }
 }
 
+impl<const BITS: usize, const WORDS: usize> std::ops::Not for Gf2Array<BITS, WORDS> {
+    type Output = Gf2Array<BITS, WORDS>;
+
+    fn not(self) -> Self::Output {
+        Gf2Array(
+            self.0
+                .iter()
+                .map(|x| !*x)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+        )
+    }
+}
+
 impl FromRandom for Gf2Array<1, 1> {
     type Source = [u128; 1];
     fn len() -> usize { 1 }
     fn from_random(src: Self::Source) -> Self {
         Self([Gf2::from_random(src).as_u128().try_into().unwrap()])
+    }
+}
+
+impl FromRandom for Gf2Array<64, 1> {
+    type Source = [u128; 1];
+    fn len() -> usize { 1 }
+    fn from_random(src: Self::Source) -> Self {
+        Self([(src[0] & u128::from(u64::MAX)).try_into().unwrap()])
     }
 }
 
@@ -313,3 +334,9 @@ impl<const BITS: usize, const WORDS: usize> Message for Gf2Array<BITS, WORDS>
 where
     Self: Serializable
 { }
+
+impl Into<[Gf2; 64]> for crate::secret_sharing::Gf2Array<64, 1> {
+    fn into(self) -> [Gf2; 64] {
+        (0..64).map(|i| if (self.0[0] >> i) & 1 == 1 { Gf2::ONE } else { Gf2::ZERO }).collect::<Vec<_>>().try_into().unwrap()
+    }
+}

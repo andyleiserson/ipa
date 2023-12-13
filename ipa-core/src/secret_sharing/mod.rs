@@ -145,6 +145,8 @@ where
 
 impl FieldSimd<32> for Fp32BitPrime { }
 
+impl FieldSimd<64> for Gf2 { }
+
 pub trait SharedValueArray<V>:
     Clone
     + Eq
