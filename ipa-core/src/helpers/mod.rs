@@ -15,6 +15,7 @@ pub mod stream;
 mod transport;
 use std::ops::{Index, IndexMut};
 
+pub use buffers::BufferedStream;
 /// to validate that transport can actually send streams of this type
 #[cfg(test)]
 pub use buffers::OrderingSender;
