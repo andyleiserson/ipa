@@ -18,7 +18,7 @@ use crate::{
         boolean_array::{BA32, BA7},
         ArrayAccess, CustomArray, Expand, Field, PrimeField, Serializable,
     },
-    helpers::Role,
+    helpers::{BufferedStream, Role},
     protocol::{
         basics::{if_else, SecureMul, ShareKnownValue},
         boolean::or::or,
@@ -515,7 +515,9 @@ where
         });
 
     // Execute all of the async futures (sequentially), and flatten the result
-    let flattened_stream = seq_join(sh_ctx.active_work(), stream_iter(per_user_results))
+    let flattened_stream = seq_join(sh_ctx.active_work(), stream_iter(per_user_results));
+
+    let buffered_stream = BufferedStream::new(flattened_stream, sh_ctx.active_work())
         .flat_map(|x| stream_iter(x.unwrap()));
 
     // modulus convert breakdown keys and trigger values
@@ -523,7 +525,7 @@ where
         prime_field_ctx
             .narrow(&Step::ModulusConvertBreakdownKeyBitsAndTriggerValues)
             .set_total_records(num_outputs),
-        flattened_stream,
+        buffered_stream,
         0..(<BK as SharedValue>::BITS + <TV as SharedValue>::BITS),
     );
 
