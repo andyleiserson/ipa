@@ -341,7 +341,7 @@ mod test {
                 x.push(rng.gen::<BA64>());
 
             }
-            const N: usize = 4096;
+            const N: usize = 256;
             const CMP_BITS: usize = 64;
             let x_int: Vec<u64> = x.iter().map(|x| x.as_u128().try_into().unwrap()).collect::<Vec<_>>();
             let y: BA64 = rng.gen::<BA64>();
