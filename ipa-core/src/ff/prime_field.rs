@@ -34,6 +34,8 @@ macro_rules! field_impl {
         }
 
         impl Field for $field {
+            const NAME: &'static str = stringify!($field);
+
             const ONE: Self = $field(1);
 
             fn as_u128(&self) -> u128 {

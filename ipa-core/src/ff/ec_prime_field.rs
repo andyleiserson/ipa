@@ -178,6 +178,8 @@ sc_hash_impl!(u64);
 
 ///implement Field because required by PRSS
 impl Field for Fp25519 {
+    const NAME: &'static str = "Fp25519";
+
     const ONE: Fp25519 = Fp25519::ONE;
 
     ///both following methods are based on hashing and do not allow to actually convert elements in Fp25519
