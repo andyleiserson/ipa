@@ -48,7 +48,7 @@ stall-detection = []
 shuttle = ["shuttle-crate", "test-fixture"]
 debug-trace = ["tracing/max_level_trace", "tracing/release_max_level_debug"]
 # TODO: we may want to use in-memory-bench and real-world-bench some time after
-enable-benches = ["cli", "in-memory-infra", "test-fixture", "criterion", "iai"]
+enable-benches = ["cli", "in-memory-infra", "test-fixture", "criterion", "iai", "multi-threading"]
 # The following two features are mutually exclusive. In-memory should be enabled by default as the vast majority
 # of unit tests use it. Real world infra uses HTTP implementation and is suitable for integration/e2e tests
 in-memory-infra = []
