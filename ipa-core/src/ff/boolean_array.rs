@@ -95,6 +95,8 @@ macro_rules! boolean_array_impl_small {
 
         // TODO(812): remove this impl; BAs are not field elements.
         impl Field for $name {
+            const NAME: &'static str = stringify!($name);
+
             const ONE: Self = Self(bitarr_one!($bits));
 
             fn as_u128(&self) -> u128 {

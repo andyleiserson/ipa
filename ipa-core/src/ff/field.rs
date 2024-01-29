@@ -30,6 +30,9 @@ pub trait Field:
     + TryFrom<u128, Error = error::Error>
     + Into<Self::Storage>
 {
+    // Name of the field
+    const NAME: &'static str;
+
     /// Multiplicative identity element
     const ONE: Self;
 

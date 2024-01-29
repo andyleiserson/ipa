@@ -146,6 +146,8 @@ impl From<bool> for Boolean {
 
 ///implement Field because required by PRSS
 impl Field for Boolean {
+    const NAME: &'static str = "Boolean";
+
     const ONE: Boolean = Boolean(true);
 
     fn as_u128(&self) -> u128 {

@@ -170,6 +170,8 @@ macro_rules! bit_array_impl {
             }
 
             impl Field for $name {
+                const NAME: &'static str = stringify!($field);
+
                 const ONE: Self = Self($one);
 
                 fn as_u128(&self) -> u128 {

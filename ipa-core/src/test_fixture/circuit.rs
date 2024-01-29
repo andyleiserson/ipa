@@ -1,9 +1,12 @@
-use futures_util::future::join_all;
+use std::{iter::once, num::NonZeroUsize};
 
-use super::join3v;
+use futures::{stream, StreamExt};
+use futures_util::future::join3;
+use rand::distributions::{Standard, Distribution};
+
 use crate::{
     ff::Field,
-    helpers::TotalRecords,
+    helpers::GatewayConfig,
     protocol::{
         basics::SecureMul,
         context::{Context, SemiHonestContext},
@@ -11,67 +14,112 @@ use crate::{
     },
     rand::thread_rng,
     secret_sharing::{replicated::semi_honest::AdditiveShare as Replicated, IntoShares},
-    test_fixture::{narrow_contexts, Reconstruct, TestWorld},
+    test_fixture::{TestWorld, Reconstruct, TestWorldConfig}, seq_join::seq_join,
 };
+
+struct Inputs<F: Field, const N: usize> {
+    a: Replicated<F>,
+    b: Vec<Replicated<F>>,
+}
+
+impl<F: Field, const N: usize> Inputs<F, N> {
+    fn new(a: Replicated<F>, b: Vec<Replicated<F>>) -> Self {
+        Self { a, b }
+    }
+}
 
 /// Creates an arithmetic circuit with the given width and depth.
 ///
 /// # Panics
 /// panics when circuits did not produce the expected value.
-pub async fn arithmetic<F>(width: u32, depth: u8)
+pub async fn arithmetic<F, const N: usize>(width: u32, depth: u16, active_work: usize)
 where
     F: Field + IntoShares<Replicated<F>>,
+    [Replicated<F>; 3]: Reconstruct<F>,
     for<'a> Replicated<F>: SecureMul<SemiHonestContext<'a>>,
+    Standard: Distribution<F>,
 {
-    let world = TestWorld::default();
+    // The default GatewayConfig is optimized for performance. The default TestWorldConfig uses a
+    // modified GatewayConfig that is optimized for unit tests.
+    let mut config = TestWorldConfig::default();
+    config.gateway_config = GatewayConfig::new(active_work);
+    let world = TestWorld::new_with(config);
+
     // Re-use contexts for the entire execution because record identifiers are contiguous.
     let contexts = world.contexts();
 
-    let mut multiplications = Vec::new();
-    for record in 0..width {
-        let circuit_result = circuit(&contexts, RecordId::from(record), depth);
-        multiplications.push(circuit_result);
+    let mut inp0: Vec<Inputs<F, 1>> = Vec::with_capacity(width as usize / N);
+    let mut inp1: Vec<Inputs<F, 1>> = Vec::with_capacity(width as usize / N);
+    let mut inp2: Vec<Inputs<F, 1>> = Vec::with_capacity(width as usize / N);
+    for _ in 0..(width / (N as u32)) {
+        //let [a0, a1, a2] = [F::ONE; N].share_with(&mut thread_rng());
+        let [a0, a1, a2] = F::ONE.share_with(&mut thread_rng());
+        let mut b0 = Vec::with_capacity(depth as usize);
+        let mut b1 = Vec::with_capacity(depth as usize);
+        let mut b2 = Vec::with_capacity(depth as usize);
+        for _ in 0..(depth as usize) {
+            //let [s0, s1, s2] = [F::ONE; N].share_with(&mut thread_rng());
+            let [s0, s1, s2] = F::ONE.share_with(&mut thread_rng());
+            b0.push(s0);
+            b1.push(s1);
+            b2.push(s2);
+        }
+        inp0.push(Inputs::new(a0, b0));
+        inp1.push(Inputs::new(a1, b1));
+        inp2.push(Inputs::new(a2, b2));
     }
 
-    #[allow(clippy::disallowed_methods)] // Just for testing purposes.
-    let results = join_all(multiplications).await;
+    let [fut0, fut1, fut2] = match contexts.into_iter().zip([inp0, inp1, inp2])
+        .map(|(ctx, col_data)| {
+            let ctx = ctx.set_total_records(width as usize / N);
+            seq_join(
+                NonZeroUsize::new(active_work).unwrap(),
+                stream::iter((0..(width / (N as u32))).zip(col_data))
+                    .map(move |(record, Inputs { a, b })| {
+                        circuit::<F, N>(ctx.clone(), RecordId::from(record), depth, a, b)
+                    })
+            )
+            .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>()
+        .try_into()
+    {
+        Ok(futs) => futs,
+        Err(_) => panic!("infallible try_into array")
+    };
+
+    let (res0, res1, res2) = join3(fut0, fut1, fut2).await;
+
     let mut sum = 0;
-    for line in results {
-        sum += line.reconstruct().as_u128();
+    for line in res0.into_iter().zip(res1).zip(res2) {
+        let ((s0, s1), s2) = line;
+        for col_sum in once([s0, s1, s2].reconstruct()) {
+            sum += col_sum.as_u128();
+        }
     }
 
     assert_eq!(sum, u128::from(width));
 }
 
-async fn circuit<'a, F>(
-    top_ctx: &[SemiHonestContext<'a>; 3],
+async fn circuit<'a, F, const N: usize>(
+    ctx: SemiHonestContext<'a>,
     record_id: RecordId,
-    depth: u8,
-) -> [Replicated<F>; 3]
+    depth: u16,
+    mut a: Replicated<F>,
+    b: Vec<Replicated<F>>,
+) -> Replicated<F>
 where
-    F: Field + IntoShares<Replicated<F>>,
+    F: Field,
     Replicated<F>: SecureMul<SemiHonestContext<'a>>,
 {
-    let mut a = F::ONE.share_with(&mut thread_rng());
 
-    for bit in 0..depth {
-        let b = F::ONE.share_with(&mut thread_rng());
-        let bit_ctx = narrow_contexts(top_ctx, &format!("b{bit}"));
-        a = async move {
-            let mut coll = Vec::new();
-            for (i, ctx) in bit_ctx.iter().enumerate() {
-                let mul = a[i].multiply(
-                    &b[i],
-                    ctx.narrow("mult")
-                        .set_total_records(TotalRecords::Indeterminate),
-                    record_id,
-                );
-                coll.push(mul);
-            }
-
-            join3v(coll).await
-        }
-        .await;
+    for stripe in 0..(depth as usize) {
+        let stripe_ctx = ctx.narrow(&format!("s{stripe}"));
+        a = a.multiply(
+            &b[stripe],
+            stripe_ctx,
+            record_id,
+        ).await.unwrap();
     }
 
     a
