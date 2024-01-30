@@ -1,5 +1,5 @@
 mod crypto;
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions,prss_index_tracking))]
 use std::collections::HashSet;
 use std::{
     collections::HashMap,
@@ -24,13 +24,13 @@ use crate::{
 /// Any two indices provided to `IndexesSharedRandomness::generate_values` must be unique.
 /// As PRSS instance is unique per step, this only constrains randomness generated within
 /// a given step.
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions,prss_index_tracking))]
 struct UsedSet {
     key: Gate,
     used: Arc<Mutex<HashSet<usize>>>,
 }
 
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions,prss_index_tracking))]
 impl UsedSet {
     fn new(key: Gate) -> Self {
         Self {
@@ -58,7 +58,7 @@ impl UsedSet {
     }
 }
 
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions,prss_index_tracking))]
 impl Debug for UsedSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "IndicesSet(key={})", self.key)
@@ -87,7 +87,7 @@ impl Display for PrssIndex128 {
     }
 }
 
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions,prss_index_tracking))]
 impl From<u64> for PrssIndex128 {
     fn from(value: u64) -> Self {
         Self {
@@ -152,7 +152,7 @@ impl PrssIndex {
 pub struct IndexedSharedRandomness {
     left: Generator,
     right: Generator,
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions,prss_index_tracking))]
     used: UsedSet,
 }
 
@@ -162,7 +162,7 @@ impl SharedRandomness for IndexedSharedRandomness {
         index: I,
     ) -> (GenericArray<u128, N>, GenericArray<u128, N>) {
         let index = index.into();
-        #[cfg(debug_assertions)]
+        #[cfg(all(debug_assertions,prss_index_tracking))]
         {
             for i in 0..N::USIZE {
                 self.used.insert(index.offset(i));
@@ -285,7 +285,7 @@ impl EndpointInner {
                 EndpointItem::Indexed(Arc::new(IndexedSharedRandomness {
                     left: self.left.generator(k.as_ref().as_bytes()),
                     right: self.right.generator(k.as_ref().as_bytes()),
-                    #[cfg(debug_assertions)]
+                    #[cfg(all(debug_assertions,prss_index_tracking))]
                     used: UsedSet::new(key.clone()),
                 }))
             })
@@ -655,7 +655,7 @@ pub mod test {
     }
 
     #[test]
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions,prss_index_tracking))]
     #[should_panic(
         expected = "Generated randomness for index '100:0' twice using the same key 'protocol/test'"
     )]
