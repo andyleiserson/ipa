@@ -337,6 +337,14 @@ mod fp32bit {
         type ArrayAlias = StdArray<Fp32BitPrime, 32>;
     }
 
+    impl Vectorizable<256> for Fp32BitPrime {
+        type Array = StdArray<Fp32BitPrime, 256>;
+    }
+
+    impl FieldVectorizable<256> for Fp32BitPrime {
+        type ArrayAlias = StdArray<Fp32BitPrime, 256>;
+    }
+
     #[cfg(all(test, unit_test))]
     mod specialized_tests {
         use super::*;
