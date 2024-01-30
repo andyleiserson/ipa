@@ -211,6 +211,8 @@ impl<F: Field> FieldSimd<1> for F {}
 
 impl FieldSimd<32> for Fp32BitPrime {}
 
+impl FieldSimd<256> for Fp32BitPrime {}
+
 pub trait SharedValueArray<V>:
     Clone
     + Eq
