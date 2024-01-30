@@ -63,6 +63,7 @@ descriptive-gate = []
 compact-gate = ["ipa-macros/compact-gate"]
 # Enable using more than one thread for protocol execution. Most of the parallelism occurs at parallel/seq_join operations
 multi-threading = ["async-scoped"]
+prss-index-tracking = []
 
 # Standalone aggregation protocol. We use IPA infra for communication
 # but it has nothing to do with IPA.
