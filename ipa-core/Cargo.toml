@@ -8,12 +8,12 @@ edition = "2021"
 default = [
     "web-app",
     "in-memory-infra",
+    "tracing/max_level_info",
     # by default remove all TRACE, DEBUG spans from release builds
-    "tracing/max_level_trace",
-    "tracing/release_max_level_info",
+    #"tracing/release_max_level_info",
     "descriptive-gate",
     "aggregate-circuit",
-    "stall-detection",
+    #"stall-detection",
     "aggregate-circuit",
     "ipa-prf",
 ]
