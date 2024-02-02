@@ -52,7 +52,7 @@ struct ReplicatedValidatorFinalization<C> {
     ctx: C,
 }
 
-impl<C: Context + 'static> ReplicatedValidatorFinalization<C> {
+impl<C: Context> ReplicatedValidatorFinalization<C> {
     fn new(active: ReplicatedValidatorActive<C>) -> Self {
         let ReplicatedValidatorActive {
             ctx,
@@ -105,7 +105,7 @@ struct ReplicatedValidatorActive<C> {
     right_hash: Sha256,
 }
 
-impl<C: Context + 'static> ReplicatedValidatorActive<C> {
+impl<C: Context> ReplicatedValidatorActive<C> {
     fn new(ctx: C) -> Self {
         Self {
             ctx,
@@ -138,7 +138,7 @@ enum ReplicatedValidatorState<C> {
     Finalizing(ReplicatedValidatorFinalization<C>),
 }
 
-impl<C: Context + 'static> ReplicatedValidatorState<C> {
+impl<C: Context> ReplicatedValidatorState<C> {
     /// # Panics
     /// This panics if it is called after `finalize()`.
     fn update<S, V>(&mut self, s: &S)
@@ -174,7 +174,7 @@ struct ReplicatedValidator<C, T: Stream, S, V> {
     _marker: PhantomData<(S, V)>,
 }
 
-impl<C: Context + 'static, T: Stream, S, V> ReplicatedValidator<C, T, S, V> {
+impl<C: Context, T: Stream, S, V> ReplicatedValidator<C, T, S, V> {
     pub fn new(ctx: C, s: T) -> Self {
         Self {
             input: s.fuse(),
@@ -186,7 +186,7 @@ impl<C: Context + 'static, T: Stream, S, V> ReplicatedValidator<C, T, S, V> {
 
 impl<C, T, S, V> Stream for ReplicatedValidator<C, T, S, V>
 where
-    C: Context + 'static,
+    C: Context,
     T: Stream<Item = Result<S, Error>>,
     S: ReplicatedSecretSharing<V>,
     V: SharedValue,
