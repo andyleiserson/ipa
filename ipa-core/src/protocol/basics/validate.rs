@@ -47,17 +47,18 @@ impl Serializable for HashValue {
 
 impl Message for HashValue {}
 
-struct ReplicatedValidatorFinalization<C> {
-    f: Pin<Box<dyn Future<Output = Result<(), Error>>>>,
+struct ReplicatedValidatorFinalization<'a, C: 'a> {
+    f: Pin<Box<dyn Future<Output = Result<(), Error>> + 'a>>,
     ctx: C,
 }
 
-impl<C: Context> ReplicatedValidatorFinalization<C> {
-    fn new(active: ReplicatedValidatorActive<C>) -> Self {
+impl<'a, C: Context + 'a> ReplicatedValidatorFinalization<'a, C> {
+    fn new(active: ReplicatedValidatorActive<'a, C>) -> Self {
         let ReplicatedValidatorActive {
             ctx,
             left_hash,
             right_hash,
+            phantom_data: _,
         } = active;
         // Ugh: The version of sha2 we currently use doesn't use the same GenericArray version as we do.
         let left_hash = HashValue(GenericArray::from(<HashOutputArray>::from(
@@ -68,9 +69,10 @@ impl<C: Context> ReplicatedValidatorFinalization<C> {
         )));
         let left_peer = ctx.role().peer(Direction::Left);
         let right_peer = ctx.role().peer(Direction::Left);
-        let ctx_ref = &ctx;
+        let ctx_clone = ctx.clone();
 
         let f = Box::pin(async move {
+            let ctx_ref = &ctx_clone;
             try_join(
                 ctx_ref
                     .send_channel(left_peer)
@@ -99,18 +101,20 @@ impl<C: Context> ReplicatedValidatorFinalization<C> {
     }
 }
 
-struct ReplicatedValidatorActive<C> {
+struct ReplicatedValidatorActive<'a, C> {
     ctx: C,
     left_hash: Sha256,
     right_hash: Sha256,
+    phantom_data: PhantomData<&'a ()>,
 }
 
-impl<C: Context> ReplicatedValidatorActive<C> {
+impl<'a, C: Context + 'a> ReplicatedValidatorActive<'a, C> {
     fn new(ctx: C) -> Self {
         Self {
             ctx,
             left_hash: HashFunction::new(),
             right_hash: HashFunction::new(),
+            phantom_data: PhantomData,
         }
     }
 
@@ -126,19 +130,19 @@ impl<C: Context> ReplicatedValidatorActive<C> {
         self.right_hash.update(buf.as_slice());
     }
 
-    fn finalize(self) -> ReplicatedValidatorFinalization<C> {
+    fn finalize(self) -> ReplicatedValidatorFinalization<'a, C> {
         ReplicatedValidatorFinalization::new(self)
     }
 }
 
-enum ReplicatedValidatorState<C> {
+enum ReplicatedValidatorState<'a, C: 'a> {
     /// While the validator is waiting, it holds a context reference.
-    Pending(Option<ReplicatedValidatorActive<C>>),
+    Pending(Option<ReplicatedValidatorActive<'a, C>>),
     /// After the validator has taken all of its inputs, it holds a future.
-    Finalizing(ReplicatedValidatorFinalization<C>),
+    Finalizing(ReplicatedValidatorFinalization<'a, C>),
 }
 
-impl<C: Context> ReplicatedValidatorState<C> {
+impl<'a, C: Context + 'a> ReplicatedValidatorState<'a, C> {
     /// # Panics
     /// This panics if it is called after `finalize()`.
     fn update<S, V>(&mut self, s: &S)
@@ -167,14 +171,14 @@ impl<C: Context> ReplicatedValidatorState<C> {
 }
 
 #[pin_project]
-struct ReplicatedValidator<C, T: Stream, S, V> {
+struct ReplicatedValidator<'a, C: 'a, T: Stream, S, V> {
     #[pin]
     input: Fuse<T>,
-    state: ReplicatedValidatorState<C>,
+    state: ReplicatedValidatorState<'a, C>,
     _marker: PhantomData<(S, V)>,
 }
 
-impl<C: Context, T: Stream, S, V> ReplicatedValidator<C, T, S, V> {
+impl<'a, C: Context + 'a, T: Stream, S, V> ReplicatedValidator<'a, C, T, S, V> {
     pub fn new(ctx: C, s: T) -> Self {
         Self {
             input: s.fuse(),
@@ -184,9 +188,9 @@ impl<C: Context, T: Stream, S, V> ReplicatedValidator<C, T, S, V> {
     }
 }
 
-impl<C, T, S, V> Stream for ReplicatedValidator<C, T, S, V>
+impl<'a, C, T, S, V> Stream for ReplicatedValidator<'a, C, T, S, V>
 where
-    C: Context,
+    C: Context + 'a,
     T: Stream<Item = Result<S, Error>>,
     S: ReplicatedSecretSharing<V>,
     V: SharedValue,
