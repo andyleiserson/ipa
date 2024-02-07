@@ -45,22 +45,26 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // be a multiple of the vectorization width.
 
     // These total 262,144 elements.
+    do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group, 16_384,    16,    2);
     do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group, 16_384,    16,    8);
     do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group, 16_384,    16,   32);
-    do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group, 16_384,    16,  128);
-    do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group, 16_384,    16,  512);
+    //do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group, 16_384,    16,  128);
+    //do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group, 16_384,    16,  512);
+    do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group,  2_048,   128,    2);
     do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group,  2_048,   128,    8);
     do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group,  2_048,   128,   32);
-    do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group,  2_048,   128,  128);
-    do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group,  2_048,   128,  512);
+    //do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group,  2_048,   128,  128);
+    //do_benchmark::<_, Fp32BitPrime, 32>(&rt, &mut group,  2_048,   128,  512);
 
     // These total 1,048,576 elements.
+    do_benchmark::<_, Fp32BitPrime,  32>(&rt, &mut group,  1_024, 1_024,   2);
     do_benchmark::<_, Fp32BitPrime,  32>(&rt, &mut group,  1_024, 1_024,   8);
     do_benchmark::<_, Fp32BitPrime,  32>(&rt, &mut group,  1_024, 1_024,  32);
-    do_benchmark::<_, Fp32BitPrime,  32>(&rt, &mut group,  1_024, 1_024, 128);
+    //do_benchmark::<_, Fp32BitPrime,  32>(&rt, &mut group,  1_024, 1_024, 128);
+    do_benchmark::<_, Fp32BitPrime, 256>(&rt, &mut group,  4_096,   256,   2);
     do_benchmark::<_, Fp32BitPrime, 256>(&rt, &mut group,  4_096,   256,   8);
     do_benchmark::<_, Fp32BitPrime, 256>(&rt, &mut group,  4_096,   256,  32);
-    do_benchmark::<_, Fp32BitPrime, 256>(&rt, &mut group,  4_096,   256, 128);
+    //do_benchmark::<_, Fp32BitPrime, 256>(&rt, &mut group,  4_096,   256, 128);
 }
 
 criterion_group!(benches, criterion_benchmark);

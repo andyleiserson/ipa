@@ -71,7 +71,7 @@ where
         .map(|(ctx, col_data)| {
             let ctx = ctx.set_total_records(width as usize / N);
             seq_join(
-                NonZeroUsize::new(active_work).unwrap(),
+                NonZeroUsize::new(active_work * 16).unwrap(),
                 stream::iter((0..(width / (N as u32))).zip(col_data))
                     .map(move |(record, Inputs { a, b })| {
                         circuit(ctx.clone(), RecordId::from(record), depth, a, b)
