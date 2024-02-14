@@ -1,9 +1,12 @@
+use std::borrow::Cow;
+use futures::{Future, FutureExt};
+
 use crate::{
     error::Error,
     ff::{boolean::Boolean, Field},
     protocol::{
         basics::{
-            mul::{boolean_array_multiply, BooleanArrayMul},
+            mul::BooleanArrayMul,
             SecureMul,
         },
         context::Context,
@@ -64,16 +67,16 @@ where
 ///
 /// # Errors
 /// If the protocol fails to execute.
-pub async fn select<C, B>(
+pub fn select<'fut, C, B>(
     ctx: C,
     record_id: RecordId,
     condition: &AdditiveShare<Boolean>,
     true_value: &B,
     false_value: &B,
-) -> Result<B, Error>
+) -> impl Future<Output = Result<B, Error>> + Send + 'fut
 where
-    C: Context,
-    B: Clone + BooleanArrayMul,
+    C: Context + 'fut,
+    B: Clone + BooleanArrayMul + 'fut,
 {
     let false_value = B::Vectorized::from(false_value.clone());
     let true_value = B::Vectorized::from(true_value.clone());
@@ -87,9 +90,6 @@ where
     //     false_value + condition * (true_value - false_value)
     //   = false_value + 0
     //   = false_value
-    let product =
-        boolean_array_multiply::<_, B>(ctx, record_id, &condition, &(true_value - &false_value))
-            .await?;
-
-    Ok((false_value + &product).into())
+    B::multiply(ctx, record_id, Cow::Owned(condition), Cow::Owned(true_value - &false_value))
+        .map(|res| res.map(|product| (false_value + &product).into()))
 }

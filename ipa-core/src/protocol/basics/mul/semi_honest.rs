@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use async_trait::async_trait;
 
 use crate::{
@@ -29,21 +31,21 @@ use crate::{
 /// ## Errors
 /// Lots of things may go wrong here, from timeouts to bad output. They will be signalled
 /// back via the error response
-pub async fn multiply<C, F, const N: usize>(
+pub async fn multiply<'fut, C, F, const N: usize>(
     ctx: C,
     record_id: RecordId,
-    a: &Replicated<F, N>,
-    b: &Replicated<F, N>,
+    a: Cow<'fut, Replicated<F, N>>,
+    b: Cow<'fut, Replicated<F, N>>,
     zeros: MultiplyZeroPositions,
 ) -> Result<Replicated<F, N>, Error>
 where
-    C: Context,
+    C: Context + 'fut,
     F: Field + FieldSimd<N>,
 {
     let role = ctx.role();
     let [need_to_recv, need_to_send, need_random_right] = zeros.work_for(role);
-    zeros.0.check(role, "a", a);
-    zeros.1.check(role, "b", b);
+    zeros.0.check(role, "a", &a);
+    zeros.1.check(role, "b", &b);
 
     // Shared randomness used to mask the values that are sent.
     let (s0, s1) = ctx
@@ -108,15 +110,13 @@ where
     where
         C: 'fut,
     {
-        multiply(ctx, record_id, self, rhs, zeros_at).await
+        multiply(ctx, record_id, Cow::Borrowed(self), Cow::Borrowed(rhs), zeros_at).await
     }
 }
 #[cfg(all(test, unit_test))]
 mod test {
     use std::{
-        array,
-        iter::{repeat, zip},
-        time::Instant,
+        array, borrow::Cow, iter::{repeat, zip}, time::Instant
     };
 
     use rand::distributions::{Distribution, Standard};
@@ -250,8 +250,8 @@ mod test {
                 multiply(
                     ctx.set_total_records(1),
                     RecordId::from(0),
-                    &a_shares,
-                    &b_shares,
+                    Cow::Borrowed(&a_shares),
+                    Cow::Borrowed(&b_shares),
                     ZeroPositions::NONE,
                 )
                 .await
@@ -350,8 +350,8 @@ mod test {
                         val = multiply(
                             ctx.clone(),
                             RecordId::from(i - 1),
-                            &val,
-                            iter.next().unwrap(),
+                            Cow::Borrowed(&val),
+                            Cow::Borrowed(iter.next().unwrap()),
                             ZeroPositions::NONE,
                         )
                         .await

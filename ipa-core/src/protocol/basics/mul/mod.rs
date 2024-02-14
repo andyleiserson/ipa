@@ -1,6 +1,5 @@
 use std::{
-    future::Future,
-    ops::{Add, Sub},
+    borrow::Cow, future::Future, ops::{Add, Sub}
 };
 
 use async_trait::async_trait;
@@ -59,9 +58,14 @@ use semi_honest::multiply as semi_honest_mul;
 // implementations would need to specify the `N` const parameter, which is tricky, because you
 // can't supply an expression involving a type parameter (BK::BITS) as a const parameter.
 pub trait BooleanArrayMul: Expand<Input = Replicated<Boolean>> + From<Self::Vectorized> {
+    // This requres `Clone` so that we can use it within `Cow`. `Cow`, in turn, requires `Clone`
+    // (more precisely, `ToOwned`) to implement copy-on-write. We don't need copy-on-write; we
+    // could avoid requiring `Clone` by replacing `Cow` with a `MaybeOwned` enum having a subset of
+    // the functionality of `Cow`.
     type Vectorized: From<Self>
         + for<'a> Add<&'a Self::Vectorized, Output = Self::Vectorized>
         + for<'a> Sub<&'a Self::Vectorized, Output = Self::Vectorized>
+        + Clone
         + Send
         + Sync
         + 'static;
@@ -69,27 +73,11 @@ pub trait BooleanArrayMul: Expand<Input = Replicated<Boolean>> + From<Self::Vect
     fn multiply<'fut, C>(
         ctx: C,
         record_id: RecordId,
-        a: &'fut Self::Vectorized,
-        b: &'fut Self::Vectorized,
+        a: Cow<'fut, Self::Vectorized>,
+        b: Cow<'fut, Self::Vectorized>,
     ) -> impl Future<Output = Result<Self::Vectorized, Error>> + Send + 'fut
     where
         C: Context + 'fut;
-}
-
-// Workaround for https://github.com/rust-lang/rust/issues/100013. Calling this wrapper function
-// instead of `<_ as BooleanArrayMul>::multiply` seems to hide the BooleanArrayMul `impl Future`
-// GAT.
-pub fn boolean_array_multiply<'fut, C, B>(
-    ctx: C,
-    record_id: RecordId,
-    a: &'fut B::Vectorized,
-    b: &'fut B::Vectorized,
-) -> impl Future<Output = Result<B::Vectorized, Error>> + Send + 'fut
-where
-    C: Context + 'fut,
-    B: BooleanArrayMul,
-{
-    B::multiply(ctx, record_id, a, b)
 }
 
 macro_rules! boolean_array_mul {
@@ -100,8 +88,8 @@ macro_rules! boolean_array_mul {
             fn multiply<'fut, C>(
                 ctx: C,
                 record_id: RecordId,
-                a: &'fut Self::Vectorized,
-                b: &'fut Self::Vectorized,
+                a: Cow<'fut, Self::Vectorized>,
+                b: Cow<'fut, Self::Vectorized>,
             ) -> impl Future<Output = Result<Self::Vectorized, Error>> + Send + 'fut
             where
                 C: Context + 'fut,
