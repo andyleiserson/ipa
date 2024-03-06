@@ -10,7 +10,7 @@ use crate::{
     },
     helpers::Role,
     protocol::{
-        basics::Reveal, context::Context, ipa_prf::boolean_ops::addition_sequential::integer_add,
+        basics::{ExcludeH3, Reveal}, context::Context, ipa_prf::boolean_ops::addition_sequential::integer_add,
         prss::SharedRandomness, RecordId,
     },
     secret_sharing::{
@@ -163,7 +163,7 @@ where
 
     // this leaks information, but with negligible probability
     let y = AdditiveShare::<BA256>::new(sh_y.left(), sh_y.right())
-        .partial_reveal(ctx.narrow(&Step::RevealY), record_id, Role::H3)
+        .partial_reveal::<ExcludeH3>(ctx.narrow(&Step::RevealY), record_id)
         .await?;
 
     match ctx.role() {

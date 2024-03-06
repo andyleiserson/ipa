@@ -1,6 +1,6 @@
-use std::future::Future;
-
 use embed_doc_image::embed_doc_image;
+use futures::{future::{Either, MapOk}, FutureExt, TryFutureExt};
+use std::future::{Future, Ready, ready};
 
 use crate::{
     error::Error,
@@ -18,27 +18,105 @@ use crate::{
     },
 };
 
+pub trait RevealType: 'static {
+    type Output<T>: From<T>;
+    type Future<T: Send, Fut: Future<Output = Result<T, Error>> + Send>: Future<Output = Result<Self::Output<T>, Error>> + Send;
+
+    fn includes(role: Role) -> bool;
+
+    fn output_with<F, Fut, T>(role: Role, f: F) -> Self::Future<T, Fut>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<T, Error>> + Send,
+        T: Send;
+}
+
+pub struct Full;
+
+impl RevealType for Full {
+    type Output<T> = T;
+    type Future<T: Send, Fut: Future<Output = Result<T, Error>> + Send> = Either<Fut, Ready<Result<Self::Output<T>, Error>>>;
+
+    fn includes(_role: Role) -> bool {
+        true
+    }
+
+    fn output_with<F, Fut, T>(_role: Role, f: F) -> Self::Future<T, Fut>
+    where
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = Result<T, Error>> + Send,
+        T: Send,
+    {
+        f().left_future()
+    }
+}
+
+pub trait Partial: RevealType {}
+
+macro_rules! partial {
+    ($reveal:ident, $excluded_role:expr) => {
+        pub struct $reveal;
+
+        impl RevealType for $reveal {
+            type Output<U> = Option<U>;
+            type Future<T: Send, Fut: Future<Output = Result<T, Error>> + Send> = Either<MapOk<Fut, fn(T) -> Option<T>>, Ready<Result<Self::Output<T>, Error>>>;
+
+            fn includes(role: Role) -> bool {
+                role != $excluded_role
+            }
+
+            fn output_with<F, Fut, T>(role: Role, f: F) -> Either<MapOk<Fut, fn(T) -> Option<T>>, Ready<Result<Self::Output<T>, Error>>>
+            where
+                F: FnOnce() -> Fut,
+                Fut: Future<Output = Result<T, Error>>,
+            {
+                if Self::includes(role) {
+                    f().map_ok(Option::Some as _).left_future()
+                } else {
+                    ready(Ok(None)).right_future()
+                }
+            }
+        }
+
+        impl Partial for $reveal {}
+    }
+}
+
+partial!(ExcludeH1, Role::H1);
+partial!(ExcludeH2, Role::H2);
+partial!(ExcludeH3, Role::H3);
+
 /// Trait for reveal protocol to open a shared secret to all helpers inside the MPC ring.
 pub trait Reveal<C: Context, const N: usize>: Sized {
     type Output;
     /// reveal the secret to all helpers in MPC circuit. Note that after method is called,
     /// it must be assumed that the secret value has been revealed to at least one of the helpers.
     /// Even in case when method never terminates, returns an error, etc.
-    fn reveal<'fut>(
-        &'fut self,
-        ctx: C,
-        record_id: RecordId,
-    ) -> impl Future<Output = Result<Self::Output, Error>> + Send + 'fut
+    fn reveal<'fut>(&'fut self, ctx: C, record_id: RecordId) -> impl Future<Output = Result<Self::Output, Error>> + Send + 'fut
     where
-        C: 'fut;
+        C: 'fut
+    {
+        self.generic_reveal::<Full>(ctx, record_id)
+    }
 
     /// partial reveal protocol to open a shared secret to all helpers except helper `left_out` inside the MPC ring.
-    fn partial_reveal<'fut>(
+    fn partial_reveal<'fut, R: Partial>(
         &'fut self,
         ctx: C,
         record_id: RecordId,
-        left_out: Role,
-    ) -> impl Future<Output = Result<Option<Self::Output>, Error>> + Send + 'fut
+    ) -> impl Future<Output = Result<R::Output<Self::Output>, Error>> + Send + 'fut
+    where
+        C: 'fut
+    {
+        self.generic_reveal::<R>(ctx, record_id)
+    }
+
+    /// partial reveal protocol to open a shared secret to all helpers except helper `left_out` inside the MPC ring.
+    fn generic_reveal<'fut, R: RevealType>(
+        &'fut self,
+        ctx: C,
+        record_id: RecordId,
+    ) -> impl Future<Output = Result<R::Output<Self::Output>, Error>> + Send + 'fut
     where
         C: 'fut;
 }
@@ -60,62 +138,33 @@ impl<C: Context, V: SharedValue + Vectorizable<N>, const N: usize> Reveal<C, N>
 {
     type Output = <V as Vectorizable<N>>::Array;
 
-    async fn reveal<'fut>(
+    async fn generic_reveal<'fut, R: RevealType>(
         &'fut self,
         ctx: C,
         record_id: RecordId,
-    ) -> Result<<V as Vectorizable<N>>::Array, Error>
+    ) -> Result<R::Output<<V as Vectorizable<N>>::Array>, Error>
     where
         C: 'fut,
     {
         let left = self.left_arr();
         let right = self.right_arr();
 
-        ctx.send_channel::<<V as Vectorizable<N>>::Array>(ctx.role().peer(Direction::Right))
-            .send(record_id, left)
-            .await?;
-
-        // Sleep until `helper's left` sends their share
-        let share: <V as Vectorizable<N>>::Array = ctx
-            .recv_channel(ctx.role().peer(Direction::Left))
-            .receive(record_id)
-            .await?;
-
-        Ok(share + left + right)
-    }
-
-    /// TODO: implement reveal through partial reveal where `left_out` is optional
-    async fn partial_reveal<'fut>(
-        &'fut self,
-        ctx: C,
-        record_id: RecordId,
-        left_out: Role,
-    ) -> Result<Option<<V as Vectorizable<N>>::Array>, Error>
-    where
-        C: 'fut,
-    {
-        let left = self.left_arr();
-        let right = self.right_arr();
-
-        // send except to left_out
-        if ctx.role().peer(Direction::Right) != left_out {
-            ctx.send_channel::<<V as Vectorizable<N>>::Array>(
-                ctx.role().peer(Direction::Right),
-            )
-            .send(record_id, left)
-            .await?;
+        // send except to excluded helper (if any)
+        if R::includes(ctx.role().peer(Direction::Right)) {
+            ctx.send_channel::<<V as Vectorizable<N>>::Array>(ctx.role().peer(Direction::Right))
+                .send(record_id, left)
+                .await?;
         }
 
-        if ctx.role() == left_out {
-            Ok(None)
-        } else {
+        R::output_with(ctx.role(), || async move {
+            // Sleep until `helper's left` sends their share
             let share: <V as Vectorizable<N>>::Array = ctx
                 .recv_channel(ctx.role().peer(Direction::Left))
                 .receive(record_id)
                 .await?;
 
-            Ok(Some(share + left + right))
-        }
+            Ok(share + left + right)
+        }).await
     }
 }
 
@@ -127,50 +176,11 @@ impl<C: Context, V: SharedValue + Vectorizable<N>, const N: usize> Reveal<C, N>
 impl<'a, F: ExtendableField> Reveal<UpgradedMaliciousContext<'a, F>, 1> for MaliciousReplicated<F> {
     type Output = <F as Vectorizable<1>>::Array;
 
-    async fn reveal<'fut>(
+    async fn generic_reveal<'fut, R: RevealType>(
         &'fut self,
         ctx: UpgradedMaliciousContext<'a, F>,
         record_id: RecordId,
-    ) -> Result<<F as Vectorizable<1>>::Array, Error>
-    where
-        UpgradedMaliciousContext<'a, F>: 'fut,
-    {
-        use futures::future::try_join;
-
-        use crate::secret_sharing::replicated::malicious::ThisCodeIsAuthorizedToDowngradeFromMalicious;
-
-        let (left, right) = self.x().access_without_downgrade().as_tuple();
-        let left_sender = ctx.send_channel(ctx.role().peer(Direction::Left));
-        let left_receiver = ctx.recv_channel::<F>(ctx.role().peer(Direction::Left));
-        let right_sender = ctx.send_channel(ctx.role().peer(Direction::Right));
-        let right_receiver = ctx.recv_channel::<F>(ctx.role().peer(Direction::Right));
-
-        // Send share to helpers to the right and left
-        try_join(
-            left_sender.send(record_id, right),
-            right_sender.send(record_id, left),
-        )
-        .await?;
-
-        let (share_from_left, share_from_right) = try_join(
-            left_receiver.receive(record_id),
-            right_receiver.receive(record_id),
-        )
-        .await?;
-
-        if share_from_left == share_from_right {
-            Ok((left + right + share_from_left).into_array())
-        } else {
-            Err(Error::MaliciousRevealFailed)
-        }
-    }
-
-    async fn partial_reveal<'fut>(
-        &'fut self,
-        ctx: UpgradedMaliciousContext<'a, F>,
-        record_id: RecordId,
-        left_out: Role,
-    ) -> Result<Option<<F as Vectorizable<1>>::Array>, Error>
+    ) -> Result<R::Output<<F as Vectorizable<1>>::Array>, Error>
     where
         UpgradedMaliciousContext<'a, F>: 'fut,
     {
@@ -186,15 +196,13 @@ impl<'a, F: ExtendableField> Reveal<UpgradedMaliciousContext<'a, F>, 1> for Mali
 
         // Send share to helpers to the right and left
         // send except to left_out
-        if ctx.role().peer(Direction::Left) != left_out {
+        if R::includes(ctx.role().peer(Direction::Left)) {
             left_sender.send(record_id, right).await?;
         }
-        if ctx.role().peer(Direction::Right) != left_out {
+        if R::includes(ctx.role().peer(Direction::Right)) {
             right_sender.send(record_id, left).await?;
         }
-        if ctx.role() == left_out {
-            Ok(None)
-        } else {
+        R::output_with(ctx.role(), || async move {
             let (share_from_left, share_from_right) = try_join(
                 left_receiver.receive(record_id),
                 right_receiver.receive(record_id),
@@ -202,11 +210,11 @@ impl<'a, F: ExtendableField> Reveal<UpgradedMaliciousContext<'a, F>, 1> for Mali
             .await?;
 
             if share_from_left == share_from_right {
-                Ok(Some((left + right + share_from_left).into_array()))
+                Ok((left + right + share_from_left).into_array())
             } else {
                 Err(Error::MaliciousRevealFailed)
             }
-        }
+        }).await
     }
 }
 
