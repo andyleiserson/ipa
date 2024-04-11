@@ -12,7 +12,7 @@ use crate::{
         boolean::Boolean, boolean_array::BA64, ec_prime_field::Fp25519, CustomArray, Serializable,
         U128Conversions,
     },
-    helpers::stream::{process_slice_by_chunks, ChunkData, TryFlattenItersExt},
+    helpers::{stream::{process_slice_by_chunks, ChunkData, TryFlattenItersExt}, TotalRecords},
     protocol::{
         basics::{BooleanArrayMul, BooleanProtocols, SecureMul},
         context::{
@@ -241,7 +241,7 @@ where
     .await
 }
 
-#[tracing::instrument(name = "compute_prf_for_inputs", skip_all)]
+//#[tracing::instrument(name = "compute_prf_for_inputs", skip_all)]
 async fn compute_prf_for_inputs<C, BK, TV, TS>(
     ctx: C,
     input_rows: &[OPRFIPAInputRow<BK, TV, TS>],
@@ -255,7 +255,8 @@ where
     Replicated<Boolean, PRF_CHUNK>: BooleanProtocols<C, PRF_CHUNK>,
     Replicated<Fp25519, PRF_CHUNK>: SecureMul<C> + FromPrss,
 {
-    let ctx = ctx.set_total_records((input_rows.len() + PRF_CHUNK - 1) / PRF_CHUNK);
+    //let ctx = ctx.set_total_records((input_rows.len() + PRF_CHUNK - 1) / PRF_CHUNK);
+    let ctx = ctx.set_total_records(TotalRecords::Indeterminate);
     let convert_ctx = ctx.narrow(&Step::ConvertFp25519);
     let eval_ctx = ctx.narrow(&Step::EvalPrf);
 

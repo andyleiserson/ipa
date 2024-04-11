@@ -20,7 +20,7 @@ use crate::{
         boolean_array::{BA32, BA7},
         ArrayAccess, CustomArray, Expand, Field, U128Conversions,
     },
-    helpers::{repeat_n, stream::TryFlattenItersExt},
+    helpers::{repeat_n, stream::TryFlattenItersExt, TotalRecords},
     protocol::{
         basics::{select, BooleanArrayMul, BooleanProtocols, SecureMul, ShareKnownValue},
         boolean::or::or,
@@ -309,7 +309,7 @@ pub trait GroupingKey {
     fn get_grouping_key(&self) -> u64;
 }
 
-#[tracing::instrument(name = "histograms_ranges_sortkeys", skip_all)]
+//#[tracing::instrument(name = "histograms_ranges_sortkeys", skip_all)]
 /// This function does following computations per user
 /// 1. Compute histogram of users with row counts
 /// 2. Compute range of rows for each user in the input vector
@@ -360,7 +360,8 @@ where
         } else {
             let ctx_for_row_number = root_ctx
                 .narrow(&UserNthRowStep::from(row_number))
-                .set_total_records(*num_users_having_that_row_number);
+                //.set_total_records(*num_users_having_that_row_number);
+                .set_total_records(TotalRecords::Indeterminate);
             context_per_row_depth.push(ctx_for_row_number);
         }
     }
@@ -418,7 +419,7 @@ where
 /// Propagates errors from multiplications
 /// # Panics
 /// Propagates errors from multiplications
-#[tracing::instrument(name = "attribute_cap_aggregate", skip_all)]
+//#[tracing::instrument(name = "attribute_cap_aggregate", skip_all)]
 pub async fn attribute_cap_aggregate<'ctx, BK, TV, HV, TS, const SS_BITS: usize, const B: usize>(
     sh_ctx: SemiHonestContext<'ctx>,
     input_rows: Vec<PrfShardedIpaInputRow<BK, TV, TS>>,
