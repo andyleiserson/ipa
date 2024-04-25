@@ -8,7 +8,7 @@ use crate::{
         basics::SecureMul,
         context::{Context, UpgradedSemiHonestContext},
         ipa_prf::prf_sharding::BinaryTreeDepthStep,
-        RecordId,
+        BasicProtocols, RecordId,
     },
     secret_sharing::{
         replicated::{malicious::ExtendableField, semi_honest::AdditiveShare},
@@ -90,7 +90,7 @@ pub async fn move_single_value_to_bucket<'a, F>(
     robust: bool,
 ) -> Result<Vec<AdditiveShare<F>>, Error>
 where
-    AdditiveShare<F>: SecureMul<UpgradedSemiHonestContext<'a, NotSharded, F>>,
+    AdditiveShare<F>: BasicProtocols<UpgradedSemiHonestContext<'a, NotSharded, F>, F>,
     F: PrimeField + ExtendableField,
 {
     const MAX_BREAKDOWNS: usize = 512; // constrained by the compact step ability to generate dynamic steps

@@ -23,7 +23,6 @@ use crate::{
                 attribute_cap_aggregate, histograms_ranges_sortkeys, PrfShardedIpaInputRow,
             },
         },
-        prss::FromPrss,
         RecordId,
     },
     secret_sharing::{
@@ -176,8 +175,8 @@ where
 /// Propagates errors from config issues or while running the protocol
 /// # Panics
 /// Propagates errors from config issues or while running the protocol
-pub async fn oprf_ipa<'a, BK, TV, TS, SS, F>(
-    ctx: SemiHonestContext<'a>,
+pub async fn oprf_ipa<BK, TV, TS, SS, F>(
+    ctx: SemiHonestContext<'_>,
     input_rows: Vec<OPRFIPAInputRow<BK, TV, TS>>,
     attribution_window_seconds: Option<NonZeroU32>,
 ) -> Result<Vec<Replicated<F>>, Error>
@@ -232,7 +231,7 @@ where
     F: PrimeField + ExtendableField,
     Replicated<F>: Serializable,
     Replicated<Boolean, PRF_CHUNK>: BooleanProtocols<C, Boolean, PRF_CHUNK>,
-    Replicated<Fp25519, PRF_CHUNK>: SecureMul<C> + FromPrss,
+    Replicated<Fp25519, PRF_CHUNK>: SecureMul<C>,
 {
     let ctx = ctx.set_total_records((input_rows.len() + PRF_CHUNK - 1) / PRF_CHUNK);
     let convert_ctx = ctx.narrow(&Step::ConvertFp25519);

@@ -57,40 +57,40 @@ pub trait BooleanProtocols<C: Context, V: SharedValue + Vectorizable<N>, const N
 }
 
 // TODO: It might be better to remove this (protocols should use upgraded contexts)
-impl<'a, B: ShardBinding, F: PrimeField> BasicProtocols<SemiHonestContext<'a, B>, F>
+impl<B: ShardBinding, F: PrimeField> BasicProtocols<SemiHonestContext<'_, B>, F>
     for AdditiveShare<F>
 {
 }
 
-impl<'a, B: ShardBinding, F: PrimeField> BasicProtocols<UpgradedSemiHonestContext<'a, B, F>, F>
+impl<B: ShardBinding, F: PrimeField> BasicProtocols<UpgradedSemiHonestContext<'_, B, F>, F>
     for AdditiveShare<F>
 {
 }
 
 // TODO: It might be better to remove this (protocols should use upgraded contexts)
-impl<'a, B: ShardBinding> BooleanProtocols<SemiHonestContext<'a, B>, Boolean, 1>
+impl<B: ShardBinding> BooleanProtocols<SemiHonestContext<'_, B>, Boolean, 1>
     for AdditiveShare<Boolean>
 {
 }
 
-impl<'a, B: ShardBinding> BooleanProtocols<UpgradedSemiHonestContext<'a, B, Boolean>, Boolean, 1>
+impl<B: ShardBinding> BooleanProtocols<UpgradedSemiHonestContext<'_, B, Boolean>, Boolean, 1>
     for AdditiveShare<Boolean>
 {
 }
 
-impl<C: Context> BooleanProtocols<C, Boolean, PRF_CHUNK> for AdditiveShare<Boolean, PRF_CHUNK> where
-    AdditiveShare<Boolean, PRF_CHUNK>: SecureMul<C>
+impl<B: ShardBinding> BooleanProtocols<SemiHonestContext<'_, B>, Boolean, PRF_CHUNK>
+    for AdditiveShare<Boolean, PRF_CHUNK>
 {
 }
 
 // Used by semi_honest_compare_gt_vec test.
-impl<C: Context> BooleanProtocols<C, Boolean, 256> for AdditiveShare<Boolean, 256> where
-    AdditiveShare<Boolean, 256>: SecureMul<C>
+impl<B: ShardBinding> BooleanProtocols<SemiHonestContext<'_, B>, Boolean, 256>
+    for AdditiveShare<Boolean, 256>
 {
 }
 
 #[cfg(feature = "descriptive-gate")]
-impl<'a, F: ExtendableField> BasicProtocols<UpgradedMaliciousContext<'a, F>, F>
+impl<F: ExtendableField> BasicProtocols<UpgradedMaliciousContext<'_, F>, F>
     for MaliciousReplicated<F>
 {
 }

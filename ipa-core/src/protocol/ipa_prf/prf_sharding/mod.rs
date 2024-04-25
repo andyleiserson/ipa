@@ -566,8 +566,8 @@ where
         .await
 }
 
-async fn evaluate_per_user_attribution_circuit<'a, BK, TV, TS, SS>(
-    ctx_for_row_number: Vec<UpgradedSemiHonestContext<'a, NotSharded, Boolean>>,
+async fn evaluate_per_user_attribution_circuit<BK, TV, TS, SS>(
+    ctx_for_row_number: Vec<UpgradedSemiHonestContext<'_, NotSharded, Boolean>>,
     record_id: RecordId,
     rows_for_user: Vec<PrfShardedIpaInputRow<BK, TV, TS>>,
     attribution_window_seconds: Option<NonZeroU32>,

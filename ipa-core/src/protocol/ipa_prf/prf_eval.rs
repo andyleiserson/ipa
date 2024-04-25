@@ -9,7 +9,7 @@ use crate::{
         basics::{Reveal, SecureMul},
         context::Context,
         prss::{FromPrss, SharedRandomness},
-        RecordId,
+        BooleanProtocols, RecordId,
     },
     secret_sharing::{
         replicated::semi_honest::AdditiveShare, FieldSimd, Sendable, StdArray, Vectorizable,
@@ -31,6 +31,7 @@ pub(crate) enum Step {
 /// `gen_prf_key` is not included such that `compute_match_key_pseudonym` can be tested for correctness
 /// # Errors
 /// Propagates errors from multiplications
+#[cfg(test)]
 pub async fn compute_match_key_pseudonym<C>(
     sh_ctx: C,
     prf_key: AdditiveShare<Fp25519>,
@@ -38,7 +39,7 @@ pub async fn compute_match_key_pseudonym<C>(
 ) -> Result<Vec<u64>, Error>
 where
     C: Context,
-    AdditiveShare<Boolean, 1>: SecureMul<C>,
+    AdditiveShare<Boolean>: BooleanProtocols<C, Boolean>,
     AdditiveShare<Fp25519>: SecureMul<C>,
 {
     let ctx = sh_ctx.set_total_records(input_match_keys.len());
@@ -93,7 +94,7 @@ where
     Fp25519: Vectorizable<N>,
     RP25519: Vectorizable<N, Array = StdArray<RP25519, N>>,
     Boolean: FieldSimd<N>,
-    AdditiveShare<Boolean, N>: SecureMul<C>,
+    AdditiveShare<Boolean, N>: BooleanProtocols<C, Boolean, N>,
     AdditiveShare<Fp25519, N>: SecureMul<C> + FromPrss,
     StdArray<RP25519, N>: Sendable,
 {
