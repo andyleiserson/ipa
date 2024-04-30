@@ -2,10 +2,13 @@ use generic_array::GenericArray;
 use typenum::U1;
 
 use crate::{
-    ff::{Field, PrimeField, Serializable, U128Conversions},
+    ff::{Field, Gf32Bit, Serializable, U128Conversions},
     impl_shared_value_common,
     protocol::prss::FromRandomU128,
-    secret_sharing::{Block, FieldVectorizable, SharedValue, StdArray, Vectorizable},
+    secret_sharing::{
+        replicated::malicious::ExtendableField, Block, FieldVectorizable, SharedValue, StdArray,
+        Vectorizable,
+    },
 };
 
 impl Block for bool {
@@ -26,9 +29,12 @@ impl Boolean {
     }
 }
 
-impl PrimeField for Boolean {
-    type PrimeInteger = u8;
-    const PRIME: Self::PrimeInteger = 2;
+impl ExtendableField for Boolean {
+    type ExtendedField = Gf32Bit;
+
+    fn to_extended(&self) -> Self::ExtendedField {
+        Gf32Bit::try_from(self.as_u128()).unwrap()
+    }
 }
 
 impl SharedValue for Boolean {

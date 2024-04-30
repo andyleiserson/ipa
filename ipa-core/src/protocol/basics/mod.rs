@@ -20,7 +20,7 @@ pub use share_known_value::ShareKnownValue;
 pub use sum_of_product::SumOfProducts;
 
 use crate::{
-    ff::{boolean::Boolean, PrimeField},
+    ff::{boolean::Boolean, Field},
     protocol::{
         context::{Context, SemiHonestContext, UpgradedSemiHonestContext},
         ipa_prf::PRF_CHUNK,
@@ -57,12 +57,12 @@ pub trait BooleanProtocols<C: Context, V: SharedValue + Vectorizable<N>, const N
 }
 
 // TODO: It might be better to remove this (protocols should use upgraded contexts)
-impl<'a, B: ShardBinding, F: PrimeField> BasicProtocols<SemiHonestContext<'a, B>, F>
+impl<'a, B: ShardBinding, F: Field> BasicProtocols<SemiHonestContext<'a, B>, F>
     for AdditiveShare<F>
 {
 }
 
-impl<'a, B: ShardBinding, F: PrimeField> BasicProtocols<UpgradedSemiHonestContext<'a, B, F>, F>
+impl<'a, B: ShardBinding, F: ExtendableField> BasicProtocols<UpgradedSemiHonestContext<'a, B, F>, F>
     for AdditiveShare<F>
 {
 }
