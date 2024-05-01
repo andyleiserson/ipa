@@ -2,6 +2,7 @@ use async_trait::async_trait;
 
 use crate::{
     error::Error,
+    ff::Field,
     helpers::Direction,
     protocol::{
         basics::{mul::sparse::MultiplyWork, MultiplyZeroPositions, SecureMul},
@@ -13,8 +14,7 @@ use crate::{
         RecordId,
     },
     secret_sharing::{
-        replicated::semi_honest::AdditiveShare as Replicated, FieldSimd, SharedValueArray,
-        Vectorizable,
+        replicated::semi_honest::AdditiveShare as Replicated, SharedValueArray, Vectorizable,
     },
 };
 
@@ -38,7 +38,7 @@ pub async fn multiply<F, const N: usize>(
     zeros: MultiplyZeroPositions,
 ) -> Result<Replicated<F, N>, Error>
 where
-    F: DZKPCompatibleField + FieldSimd<N>,
+    F: Field + DZKPCompatibleField<N>,
 {
     let role = ctx.role();
     let [need_to_recv, need_to_send, need_random_right] = zeros.work_for(role);
@@ -121,7 +121,9 @@ where
 
 /// Implement secure multiplication for malicious contexts with replicated secret sharing.
 #[async_trait]
-impl<'a, F: DZKPCompatibleField> SecureMul<DZKPUpgradedMaliciousContext<'a>> for Replicated<F> {
+impl<'a, F: Field + DZKPCompatibleField<N>, const N: usize>
+    SecureMul<DZKPUpgradedMaliciousContext<'a>> for Replicated<F, N>
+{
     async fn multiply_sparse<'fut>(
         &self,
         rhs: &Self,
