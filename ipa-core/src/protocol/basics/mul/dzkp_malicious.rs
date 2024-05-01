@@ -1,9 +1,7 @@
 use async_trait::async_trait;
 
 use crate::{
-    error::Error,
-    helpers::Direction,
-    protocol::{
+    error::Error, ff::Field, helpers::Direction, protocol::{
         basics::{mul::sparse::MultiplyWork, MultiplyZeroPositions, SecureMul},
         context::{
             dzkp_field::DZKPCompatibleField, dzkp_validator::Segment, Context, DZKPContext,
@@ -11,11 +9,9 @@ use crate::{
         },
         prss::SharedRandomness,
         RecordId,
-    },
-    secret_sharing::{
-        replicated::semi_honest::AdditiveShare as Replicated, FieldSimd, SharedValueArray,
-        Vectorizable,
-    },
+    }, secret_sharing::{
+        replicated::semi_honest::AdditiveShare as Replicated, FieldSimd, FieldVectorizable, SharedValueArray, Vectorizable
+    }
 };
 
 /// This function implements an MPC multiply using the standard strategy, i.e. via computing the
@@ -38,7 +34,9 @@ pub async fn multiply<F, const N: usize>(
     zeros: MultiplyZeroPositions,
 ) -> Result<Replicated<F, N>, Error>
 where
-    F: DZKPCompatibleField + FieldSimd<N>,
+    F: Field + FieldSimd<N>,
+    //<F as Vectorizable<N>>::Array: DZKPCompatibleField,
+    <F as FieldVectorizable<N>>::ArrayAlias: DZKPCompatibleField,
 {
     let role = ctx.role();
     let [need_to_recv, need_to_send, need_random_right] = zeros.work_for(role);
@@ -47,14 +45,14 @@ where
 
     // include x in the segment
     segment.set_x(
-        F::as_segment_entry(&a.left_arr()),
-        F::as_segment_entry(&a.right_arr()),
+        a.left_arr().as_segment_entry(),
+        a.right_arr().as_segment_entry(),
     );
 
     // include y in the segment
     segment.set_y(
-        F::as_segment_entry(&b.left_arr()),
-        F::as_segment_entry(&b.right_arr()),
+        b.left_arr().as_segment_entry(),
+        b.right_arr().as_segment_entry(),
     );
 
     zeros.0.check(role, "a", a);
@@ -66,14 +64,14 @@ where
         .generate::<(<F as Vectorizable<N>>::Array, _), _>(record_id);
 
     // include prss in the segment
-    segment.set_prss(F::as_segment_entry(&s0), F::as_segment_entry(&s1));
+    segment.set_prss(s0.as_segment_entry(), s1.as_segment_entry());
 
-    let mut rhs = a.right_arr().clone() * b.right_arr();
+    let mut rhs = a.right_arr().clone() * *b.right_arr();
 
     if need_to_send {
         // Compute the value (d_i) we want to send to the right helper (i+1).
         let right_d =
-            a.left_arr().clone() * b.right_arr() + a.right_arr().clone() * b.left_arr() - &s0;
+            a.left_arr().clone() * *b.right_arr() + a.right_arr().clone() * *b.left_arr() - s0;
 
         ctx.send_channel::<<F as Vectorizable<N>>::Array>(role.peer(Direction::Right))
             .send(record_id, &right_d)
@@ -81,7 +79,7 @@ where
         rhs += right_d;
     } else {
         debug_assert_eq!(
-            a.left_arr().clone() * b.right_arr() + a.right_arr().clone() * b.left_arr(),
+            a.left_arr().clone() * *b.right_arr() + a.right_arr().clone() * *b.left_arr(),
             <<F as Vectorizable<N>>::Array as SharedValueArray<F>>::ZERO_ARRAY
         );
     }
@@ -93,7 +91,7 @@ where
     }
 
     // Sleep until helper on the left sends us their (d_i-1) value.
-    let mut lhs = a.left_arr().clone() * b.left_arr();
+    let mut lhs = a.left_arr().clone() * *b.left_arr();
     if need_to_recv {
         let left_d: <F as Vectorizable<N>>::Array = ctx
             .recv_channel(role.peer(Direction::Left))
@@ -107,7 +105,7 @@ where
     }
 
     // add z_right to the segment
-    segment.set_z(F::as_segment_entry(&lhs));
+    segment.set_z(lhs.as_segment_entry());
 
     // check that the segment is not empty
     debug_assert!(!segment.is_empty());
@@ -121,7 +119,11 @@ where
 
 /// Implement secure multiplication for malicious contexts with replicated secret sharing.
 #[async_trait]
-impl<'a, F: DZKPCompatibleField> SecureMul<DZKPUpgradedMaliciousContext<'a>> for Replicated<F> {
+impl<'a, F, const N: usize> SecureMul<DZKPUpgradedMaliciousContext<'a>> for Replicated<F, N>
+where
+    F: DZKPCompatibleField + FieldSimd<N>,
+    <F as FieldVectorizable<N>>::ArrayAlias: DZKPCompatibleField,
+{
     async fn multiply_sparse<'fut>(
         &self,
         rhs: &Self,
