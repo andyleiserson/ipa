@@ -212,6 +212,13 @@ where
     }
 }
 
+fn test_prss<C: Context, const BITS: usize>(
+    ctx: &C,
+    record_id: RecordId,
+) -> crate::secret_sharing::BitDecomposed<AdditiveShare<Boolean>> {
+    ctx.prss().generate_with(record_id, BITS)
+}
+
 /// Generates `sh_r` and `sh_s` from PRSS randomness (`r`).
 fn gen_sh_r_and_sh_s<C, YS, const BITS: usize, const N: usize>(
     ctx: &C,
