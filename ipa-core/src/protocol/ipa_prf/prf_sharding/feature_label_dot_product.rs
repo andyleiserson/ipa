@@ -1,4 +1,4 @@
-use std::{any::type_name_of_val, convert::Infallible, iter::zip};
+use std::{any::type_name_of_val, convert::Infallible, iter::{self, zip}};
 
 use futures::{stream, TryStreamExt};
 use futures_util::{future::try_join, stream::unfold, Stream, StreamExt};
@@ -304,7 +304,9 @@ where
                 }));
                 */
                 let foo: [Replicated<TV>; 32] = value.into_iter().collect::<Vec<_>>().try_into().unwrap();
-                BitDecomposed::transposed_from(&foo).unwrap_infallible()
+                let mut bar = BitDecomposed::new(iter::empty());
+                bar.transpose_from(&foo).unwrap_infallible();
+                bar
             }),
     );
 
