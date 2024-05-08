@@ -1,9 +1,10 @@
-use std::{any::type_name_of_val, convert::Infallible, iter::{self, zip}};
+use std::{convert::Infallible, iter::{self, zip}};
 
 use futures::{stream, TryStreamExt};
 use futures_util::{future::try_join, stream::unfold, Stream, StreamExt};
-use generic_array::{sequence::GenericSequence, ArrayLength, GenericArray};
+use generic_array::{sequence::GenericSequence, ArrayLength, ConstArrayLength, GenericArray};
 use ipa_macros::Step;
+use typenum::{Const, ToUInt};
 
 use crate::{
     error::{Error, LengthError, UnwrapInfallible},
@@ -229,21 +230,22 @@ where
 /// Propagates errors from multiplications
 /// # Panics
 /// Propagates errors from multiplications
-pub async fn compute_feature_label_dot_product<'ctx, TV, HV, M, const B: usize>(
+pub async fn compute_feature_label_dot_product<'ctx, TV, HV, const B: usize>(
     sh_ctx: UpgradedSemiHonestContext<'ctx, NotSharded, Boolean>,
-    input_rows: Vec<PrfShardedIpaInputRow<TV, M>>,
+    input_rows: Vec<PrfShardedIpaInputRow<TV, ConstArrayLength<B>>>,
     users_having_n_records: &[usize],
-) -> Result<GenericArray<Replicated<HV>, M>, Error>
+) -> Result<GenericArray<Replicated<HV>, ConstArrayLength<B>>, Error>
 where
     Boolean: FieldSimd<B>,
     Replicated<Boolean, B>:
         BooleanProtocols<UpgradedSemiHonestContext<'ctx, NotSharded, Boolean>, Boolean, B>,
-    M: ArrayLength,
+    Const<B>: ToUInt,
+    <Const<B> as ToUInt>::Output: ArrayLength,
     TV: SharedValue + U128Conversions + CustomArray<Element = Boolean>,
     Replicated<TV>: BooleanArrayMul,
     HV: SharedValue + U128Conversions + CustomArray<Element = Boolean>,
     BitDecomposed<Replicated<Boolean, B>>:
-        for<'a> TransposeFrom<&'a [Replicated<TV>; 32], Error = Infallible>,
+        for<'a> TransposeFrom<&'a [Replicated<TV>; B], Error = Infallible>,
     Vec<Replicated<HV>>:
         for<'a> TransposeFrom<&'a BitDecomposed<Replicated<Boolean, B>>, Error = LengthError>,
 {
@@ -287,25 +289,8 @@ where
         seq_join(sh_ctx.active_work(), stream::iter(chunked_user_results))
             .try_flatten_iters()
             .map_ok(|value| {
-                println!(
-                    "value: {:?}, type of: {:?}",
-                    value,
-                    type_name_of_val(&value)
-                );
-                /*
-                BitDecomposed::new((0..TV::BITS).map(|bit| {
-                    let mut packed_bits = Replicated::<Boolean, B>::ZERO;
-                    
-                    for (i, feature) in value.iter().enumerate() {
-                        packed_bits.set(i, feature.get(bit.try_into().unwrap()).unwrap());
-                    }
-                    
-                    packed_bits
-                }));
-                */
-                let foo: [Replicated<TV>; 32] = value.into_iter().collect::<Vec<_>>().try_into().unwrap();
                 let mut bar = BitDecomposed::new(iter::empty());
-                bar.transpose_from(&foo).unwrap_infallible();
+                bar.transpose_from(value.as_ref()).unwrap_infallible();
                 bar
             }),
     );
@@ -602,7 +587,7 @@ pub mod tests {
                 .upgraded_semi_honest(records.into_iter(), |ctx, input_rows| {
                     let h = users_having_n_records.as_slice();
                     async move {
-                        compute_feature_label_dot_product::<BA8, BA16, U32, 32>(ctx, input_rows, h)
+                        compute_feature_label_dot_product::<BA8, BA16, 32>(ctx, input_rows, h)
                             .await
                             .unwrap()
                     }
