@@ -7,7 +7,7 @@ use ipa_macros::Step;
 
 use crate::{
     error::{Error, LengthError, UnwrapInfallible},
-    ff::{boolean::Boolean, ArrayAccess, CustomArray, Field, U128Conversions},
+    ff::{boolean::Boolean, CustomArray, Field, U128Conversions},
     helpers::stream::TryFlattenItersExt,
     protocol::{
         basics::{select, BooleanArrayMul, BooleanProtocols, SecureMul, ShareKnownValue},
