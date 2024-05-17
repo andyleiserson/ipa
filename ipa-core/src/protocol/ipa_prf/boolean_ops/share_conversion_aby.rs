@@ -18,7 +18,7 @@ use crate::{
     },
     secret_sharing::{
         replicated::{semi_honest::AdditiveShare, ReplicatedSecretSharing},
-        FieldSimd, SharedValue, SharedValueArray, TransposeFrom, Vectorizable,
+        BitDecomposed, FieldSimd, SharedValue, SharedValueArray, TransposeFrom, Vectorizable,
     },
 };
 
@@ -215,7 +215,18 @@ where
 fn test_prss<C: Context, const BITS: usize>(
     ctx: &C,
     record_id: RecordId,
-) -> crate::secret_sharing::BitDecomposed<AdditiveShare<Boolean>> {
+) -> BitDecomposed<AdditiveShare<Boolean>> {
+    ctx.prss().generate_with(record_id, BITS)
+}
+
+fn test_prss_vectorized<C: Context, const B: usize, const BITS: usize>(
+    ctx: &C,
+    record_id: RecordId,
+) -> crate::secret_sharing::BitDecomposed<AdditiveShare<Boolean, B>>
+where
+    Boolean: Vectorizable<B>,
+    BitDecomposed<AdditiveShare<Boolean, B>>: FromPrss<usize>,
+{
     ctx.prss().generate_with(record_id, BITS)
 }
 
