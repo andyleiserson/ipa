@@ -593,15 +593,15 @@ pub mod tests {
     #[derive(Debug)]
     struct AggregatePropTestInputs {
         inputs: Vec<[u32; PROP_BUCKETS]>,
-        expected: Vec<PropHistogramValue>,
+        expected: BitDecomposed<BA8>,
         seed: u64,
         len: usize,
         tv_bits: usize,
     }
 
     const_assert!(
-        PropHistogramValue::BITS < 64,
-        "(1 << PropHistogramValue::BITS) must fit in u64"
+        PropHistogramValue::BITS < u32::BITS,
+        "(1 << PropHistogramValue::BITS) must fit in u32",
     );
 
     prop_compose! {
@@ -613,21 +613,19 @@ pub mod tests {
                                       )
         -> AggregatePropTestInputs {
             let mut rng = StdRng::seed_from_u64(seed);
-            let mut expected = vec![0u64; PROP_BUCKETS];
+            let mut expected = vec![0; PROP_BUCKETS];
             let inputs = repeat_with(|| {
                 let row: [u32; PROP_BUCKETS] = array::from_fn(|_| rng.gen_range(0..1 << tv_bits));
                 for (exp, val) in expected.iter_mut().zip(row) {
-                    *exp = min(*exp + u64::from(val), (1 << PropHistogramValue::BITS) - 1);
+                    *exp = min(*exp + val, (1 << PropHistogramValue::BITS) - 1);
                 }
                 row
             })
             .take(len)
             .collect();
 
-            // let expected : Vec<u64>  = input_row_vec(tv_bits,&expected).into_iter().map(PropHistogramValue::truncate_from).collect();
-            //
-            // let expected = input_row_vec(tv_bits,&expected).into_iter().map(PropHistogramValue::truncate_from).collect();
-            let expected = expected.into_iter().map(PropHistogramValue::truncate_from).collect();
+            let expected = input_row::<PROP_BUCKETS>(usize::try_from(PropHistogramValue::BITS).unwrap(), &expected)
+                .map(|x| x.into_iter().collect());
 
             AggregatePropTestInputs {
                 inputs,
@@ -665,11 +663,7 @@ pub mod tests {
                 .map(Result::unwrap)
                 .reconstruct_arr();
 
-                let confirm_expected_type: &Vec<BA8> = &expected;
-                let expected_arr: Vec<u32> = expected.iter().map(|&v| u32::try_from(v.as_u128()).unwrap()).collect::<Vec<_>>();
-                let expected: BitDecomposed<[Boolean; 8]> = input_row(usize::try_from(PropHistogramValue::BITS).unwrap(), &expected_arr);
-                let expected_vectorized : BitDecomposed<BA8> = expected.map(|x: [Boolean; 8]| x.into_iter().collect::<BA8>());
-                assert_eq!(result, expected_vectorized);
+                assert_eq!(result, expected);
             });
         }
     }
