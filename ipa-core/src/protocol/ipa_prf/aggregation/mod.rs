@@ -665,9 +665,10 @@ pub mod tests {
                 .map(Result::unwrap)
                 .reconstruct_arr();
 
-                let confirm_expected_type : Vec<BA8> = expected;
-                let expected_arr : [u32 ; 8] = expected.try_into().unwrap();
-                let expected_vectorized : BitDecomposed<BA8> = input_row(8, &expected_arr).map(|x: [Boolean; 8]| x.into_iter().collect::<BA8>());
+                let confirm_expected_type: &Vec<BA8> = &expected;
+                let expected_arr: Vec<u32> = expected.iter().map(|&v| u32::try_from(v.as_u128()).unwrap()).collect::<Vec<_>>();
+                let expected: BitDecomposed<[Boolean; 8]> = input_row(usize::try_from(PropHistogramValue::BITS).unwrap(), &expected_arr);
+                let expected_vectorized : BitDecomposed<BA8> = expected.map(|x: [Boolean; 8]| x.into_iter().collect::<BA8>());
                 assert_eq!(result, expected_vectorized);
             });
         }
