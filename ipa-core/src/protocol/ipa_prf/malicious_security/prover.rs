@@ -1,186 +1,226 @@
 use std::{
     borrow::Borrow,
     iter::zip,
-    ops::{Add, Sub},
+    ops::{Index, IndexMut},
 };
 
-use generic_array::{sequence::GenericSequence, ArrayLength, GenericArray};
-use typenum::{Diff, Sum, U1};
+use typenum::{Sum, U1, U3, U4, U5};
 
 use crate::{
-    ff::PrimeField,
+    ff::{Fp31, PrimeField},
     helpers::hashing::{compute_hash, hash_to_field},
     protocol::ipa_prf::malicious_security::lagrange::{
-        CanonicalLagrangeDenominator, LagrangeTable,
+        LagrangeInterpolator, LagrangeTable
     },
+    secret_sharing::SharedValue,
 };
 
-pub struct ZeroKnowledgeProof<F: PrimeField, N: ArrayLength> {
-    pub g: GenericArray<F, N>,
+trait ProofParams {
+    const λ: usize;
+    type Field: PrimeField;
+
+    /// A `u` or `v` polynomial, defined by its evaluation at x \in 0..λ.
+    type Polynomial: Default + AsRef<[Self::Field]> + IndexMut<usize, Output = Self::Field>;
+
+    /// A proof, defined by its evaluation at x \in 0..2λ-1.
+    type Proof: Default + AsRef<[Self::Field]> + IndexMut<usize, Output = Self::Field>;
+
+    /// Lagrange table for ...
+    type LagrangeTableUV: LagrangeInterpolator<Field = Self::Field>;
+
+    /// Lagrange table for ...
+    type LagrangeTableR: LagrangeInterpolator<Field = Self::Field>;
+
+    /// Variants for final proof
+    type FinalLagrangeTable: LagrangeInterpolator<Field = Self::Field>;
+    type FinalPolynomial: Default + AsRef<[Self::Field]> + IndexMut<usize, Output = Self::Field>;
+    type FinalProof: Default + AsRef<[Self::Field]> + IndexMut<usize, Output = Self::Field>;
 }
 
-impl<F, N> ZeroKnowledgeProof<F, N>
+// TODO: add to prime fields
+impl Default for Fp31 {
+    fn default() -> Self {
+        Fp31::ZERO
+    }
+}
+
+impl ProofParams for (Fp31, U4) {
+    const λ: usize = 4;
+    type Field = Fp31;
+    type Polynomial = [Fp31; 4];
+    type Proof = ZeroKnowledgeProof<Fp31, 7>;
+    type LagrangeTableUV = LagrangeTable<Fp31, U4, U3>;
+    type LagrangeTableR = LagrangeTable<Fp31, U4, U1>;
+
+    type FinalLagrangeTable = LagrangeTable<Fp31, U5, U4>;
+    type FinalPolynomial = [Fp31; 5];
+    type FinalProof = ZeroKnowledgeProof<Fp31, 9>;
+}
+
+pub struct ZeroKnowledgeProof<F: PrimeField, const N: usize> {
+    pub g: [F; N],
+}
+
+impl<F, const N: usize> Default for ZeroKnowledgeProof<F, N>
 where
     F: PrimeField,
-    N: ArrayLength,
+    [F; N]: Default,
 {
-    pub fn new<I>(g: I) -> Self
-    where
-        I: IntoIterator<Item = F>,
-    {
-        ZeroKnowledgeProof {
-            g: g.into_iter().collect(),
+    fn default() -> Self {
+        Self {
+            g: Default::default(),
         }
     }
 }
 
-#[derive(Debug)]
-pub struct ProofGenerator<F: PrimeField> {
-    u: Vec<F>,
-    v: Vec<F>,
+impl<F: PrimeField, const N: usize> Index<usize> for ZeroKnowledgeProof<F, N> {
+    type Output = F;
+
+    fn index(&self, idx: usize) -> &F {
+        &self.g[idx]
+    }
 }
 
-pub type TwoNMinusOne<N> = Diff<Sum<N, N>, U1>;
-pub type TwoNPlusOne<N> = Sum<Sum<N, N>, U1>;
+impl<F: PrimeField, const N: usize> IndexMut<usize> for ZeroKnowledgeProof<F, N> {
+    fn index_mut(&mut self, idx: usize) -> &mut F {
+        &mut self.g[idx]
+    }
+}
+
+impl<F: PrimeField, const N: usize> AsRef<[F]> for ZeroKnowledgeProof<F, N> {
+    fn as_ref(&self) -> &[F] {
+        &self.g
+    }
+}
+
+#[derive(Debug)]
+pub struct ProofGenerator<Params: ProofParams> {
+    u: Vec<Params::Field>,
+    v: Vec<Params::Field>,
+}
 
 ///
 /// Distributed Zero Knowledge Proofs algorithm drawn from
 /// `https://eprint.iacr.org/2023/909.pdf`
 ///
 #[allow(non_camel_case_types, clippy::many_single_char_names)]
-impl<F> ProofGenerator<F>
-where
-    F: PrimeField,
-{
-    pub fn new(u: Vec<F>, v: Vec<F>) -> Self {
+impl<Params: ProofParams> ProofGenerator<Params> {
+    pub fn new(u: Vec<Params::Field>, v: Vec<Params::Field>) -> Self {
         debug_assert_eq!(u.len(), v.len(), "u and v must be of equal length");
         Self { u, v }
     }
 
-    pub fn compute_proof<λ, J, B>(
+    pub fn compute_proof<J, B>(
         uv_iterator: J,
-        lagrange_table: &LagrangeTable<F, λ, <λ as Sub<U1>>::Output>,
-    ) -> ZeroKnowledgeProof<F, TwoNMinusOne<λ>>
+        lagrange_table: &Params::LagrangeTableUV,
+    ) -> Params::Proof
     where
-        λ: ArrayLength + Add + Sub<U1>,
-        <λ as Add>::Output: Sub<U1>,
-        <<λ as Add>::Output as Sub<U1>>::Output: ArrayLength,
-        <λ as Sub<U1>>::Output: ArrayLength,
         J: Iterator<Item = B>,
-        B: Borrow<(GenericArray<F, λ>, GenericArray<F, λ>)>,
+        B: Borrow<(Params::Polynomial, Params::Polynomial)>,
     {
-        let mut proof = GenericArray::<F, TwoNMinusOne<λ>>::generate(|_| F::ZERO);
+        let mut proof = Params::Proof::default();
         for uv_polynomial in uv_iterator {
-            for i in 0..λ::USIZE {
+            for i in 0..Params::λ {
                 proof[i] += uv_polynomial.borrow().0[i] * uv_polynomial.borrow().1[i];
             }
-            let p_extrapolated = lagrange_table.eval(&uv_polynomial.borrow().0);
-            let q_extrapolated = lagrange_table.eval(&uv_polynomial.borrow().1);
+            let p_extrapolated = lagrange_table.eval(uv_polynomial.borrow().0.as_ref());
+            let q_extrapolated = lagrange_table.eval(uv_polynomial.borrow().1.as_ref());
 
             for (i, (x, y)) in
                 zip(p_extrapolated.into_iter(), q_extrapolated.into_iter()).enumerate()
             {
-                proof[λ::USIZE + i] += x * y;
+                proof[Params::λ + i] += x * y;
             }
         }
-        ZeroKnowledgeProof::new(proof)
+        proof
     }
 
-    pub fn compute_final_proof<λ, I, J>(
+    pub fn compute_final_proof<I, J>(
         u: I,
         v: J,
-        p_0: F,
-        q_0: F,
-        lagrange_table: &LagrangeTable<F, Sum<λ, U1>, λ>,
-    ) -> ZeroKnowledgeProof<F, TwoNPlusOne<λ>>
+        p_0: Params::Field,
+        q_0: Params::Field,
+        lagrange_table: &Params::FinalLagrangeTable,
+    ) -> Params::FinalProof
     where
-        λ: ArrayLength + Add + Add<U1>,
-        <λ as Add>::Output: Add<U1>,
-        <<λ as Add>::Output as Add<U1>>::Output: ArrayLength,
-        <λ as Add<U1>>::Output: ArrayLength,
-        I: IntoIterator<Item = F>,
-        J: IntoIterator<Item = F>,
+        I: IntoIterator<Item = Params::Field>,
+        J: IntoIterator<Item = Params::Field>,
         I::IntoIter: ExactSizeIterator,
         J::IntoIter: ExactSizeIterator,
     {
         let mut u = u.into_iter();
         let mut v = v.into_iter();
 
-        assert_eq!(u.len(), λ::USIZE); // We should pad with zeroes eventually
-        assert_eq!(v.len(), λ::USIZE); // We should pad with zeroes eventually
+        assert_eq!(u.len(), Params::λ); // We should pad with zeroes eventually
+        assert_eq!(v.len(), Params::λ); // We should pad with zeroes eventually
 
-        let mut p = GenericArray::<F, Sum<λ, U1>>::generate(|_| F::ZERO);
-        let mut q = GenericArray::<F, Sum<λ, U1>>::generate(|_| F::ZERO);
-        let mut proof: GenericArray<F, TwoNPlusOne<λ>> = GenericArray::generate(|_| F::ZERO);
+        let mut p = Params::FinalPolynomial::default();
+        let mut q = Params::FinalPolynomial::default();
+        let mut proof = Params::FinalProof::default();
         p[0] = p_0;
         q[0] = q_0;
         proof[0] = p_0 * q_0;
 
-        for i in 0..λ::USIZE {
-            let x = u.next().unwrap_or(F::ZERO);
-            let y = v.next().unwrap_or(F::ZERO);
+        for i in 0..Params::λ {
+            let x = u.next().unwrap_or(Params::Field::ZERO);
+            let y = v.next().unwrap_or(Params::Field::ZERO);
             p[i + 1] = x;
             q[i + 1] = y;
             proof[i + 1] += x * y;
         }
         // We need a table of size `λ + 1` since we add a random point at x=0
-        let p_extrapolated = lagrange_table.eval(&p);
-        let q_extrapolated = lagrange_table.eval(&q);
+        let p_extrapolated = lagrange_table.eval(p.as_ref());
+        let q_extrapolated = lagrange_table.eval(q.as_ref());
 
         for (i, (x, y)) in zip(p_extrapolated.into_iter(), q_extrapolated.into_iter()).enumerate() {
-            proof[λ::USIZE + 1 + i] += x * y;
+            proof[Params::λ + 1 + i] += x * y;
         }
 
-        ZeroKnowledgeProof::new(proof)
+        proof
     }
 
-    pub fn gen_challenge_and_recurse<λ, I, J>(
-        proof_left: &GenericArray<F, TwoNMinusOne<λ>>,
-        proof_right: &GenericArray<F, TwoNMinusOne<λ>>,
+    pub fn gen_challenge_and_recurse<I, J>(
+        proof_left: &Params::Proof,
+        proof_right: &Params::Proof,
         u: I,
         v: J,
-    ) -> ProofGenerator<F>
+    ) -> Self
     where
-        λ: ArrayLength + Add + Sub<U1>,
-        <λ as Add>::Output: Sub<U1>,
-        <<λ as Add>::Output as Sub<U1>>::Output: ArrayLength,
-        <λ as Sub<U1>>::Output: ArrayLength,
-        I: IntoIterator<Item = F>,
-        J: IntoIterator<Item = F>,
+        I: IntoIterator<Item = Params::Field>,
+        J: IntoIterator<Item = Params::Field>,
         I::IntoIter: ExactSizeIterator,
         J::IntoIter: ExactSizeIterator,
     {
         let mut u = u.into_iter();
         let mut v = v.into_iter();
 
-        debug_assert_eq!(u.len() % λ::USIZE, 0); // We should pad with zeroes eventually
+        debug_assert_eq!(u.len() % Params::λ, 0); // We should pad with zeroes eventually
 
-        let s = u.len() / λ::USIZE;
+        let s = u.len() / Params::λ;
 
         assert!(
             s > 1,
             "When the output is this small, you should validate the proof with a more straightforward reveal"
         );
 
-        let r: F = hash_to_field(
-            &compute_hash(proof_left),
-            &compute_hash(proof_right),
-            λ::U128,
+        let r: Params::Field = hash_to_field(
+            &compute_hash(proof_left.as_ref()),
+            &compute_hash(proof_right.as_ref()),
+            u128::try_from(Params::λ).unwrap(),
         );
-        let mut p = GenericArray::<F, λ>::generate(|_| F::ZERO);
-        let mut q = GenericArray::<F, λ>::generate(|_| F::ZERO);
-        let denominator = CanonicalLagrangeDenominator::<F, λ>::new();
-        let lagrange_table_r = LagrangeTable::<F, λ, U1>::new(&denominator, &r);
+        let mut p = Params::Polynomial::default();
+        let mut q = Params::Polynomial::default();
+        let lagrange_table_r = Params::LagrangeTableR::new(&r);
 
         let pairs = (0..s).map(|_| {
-            for i in 0..λ::USIZE {
-                let x = u.next().unwrap_or(F::ZERO);
-                let y = v.next().unwrap_or(F::ZERO);
+            for i in 0..Params::λ {
+                let x = u.next().unwrap_or(Params::Field::ZERO);
+                let y = v.next().unwrap_or(Params::Field::ZERO);
                 p[i] = x;
                 q[i] = y;
             }
-            let p_r = lagrange_table_r.eval(&p)[0];
-            let q_r = lagrange_table_r.eval(&q)[0];
+            let p_r = lagrange_table_r.eval(p.as_ref())[0];
+            let q_r = lagrange_table_r.eval(q.as_ref())[0];
             (p_r, q_r)
         });
         let (u, v) = pairs.unzip();
@@ -188,9 +228,10 @@ where
     }
 }
 
-impl<F> PartialEq<(&[u128], &[u128])> for ProofGenerator<F>
+impl<Params> PartialEq<(&[u128], &[u128])> for ProofGenerator<Params>
 where
-    F: PrimeField + std::cmp::PartialEq<u128>,
+    Params: ProofParams,
+    Params::Field: std::cmp::PartialEq<u128>,
 {
     fn eq(&self, other: &(&[u128], &[u128])) -> bool {
         let (cmp_a, cmp_b) = other;
@@ -270,23 +311,23 @@ mod test {
         let uv_1 = (0usize..8)
             .map(|i| {
                 (
-                    *GenericArray::<Fp31, U4>::from_slice(&vec_u_1[4 * i..4 * i + 4]),
-                    *GenericArray::<Fp31, U4>::from_slice(&vec_v_1[4 * i..4 * i + 4]),
+                    <[_; 4]>::try_from(&vec_u_1[4 * i..4 * i + 4]).unwrap(),
+                    <[_; 4]>::try_from(&vec_v_1[4 * i..4 * i + 4]).unwrap(),
                 )
             })
             .collect::<Vec<_>>();
         let uv_2 = (0usize..2)
             .map(|i| {
                 (
-                    *GenericArray::<Fp31, U4>::from_slice(&vec_u_2[4 * i..4 * i + 4]),
-                    *GenericArray::<Fp31, U4>::from_slice(&vec_v_2[4 * i..4 * i + 4]),
+                    <[_; 4]>::try_from(&vec_u_2[4 * i..4 * i + 4]).unwrap(),
+                    <[_; 4]>::try_from(&vec_v_2[4 * i..4 * i + 4]).unwrap(),
                 )
             })
             .collect::<Vec<_>>();
 
         // first iteration
         let proof_1 =
-            ProofGenerator::<Fp31>::compute_proof::<U4, _, _>(uv_1.iter(), &lagrange_table);
+            ProofGenerator::<(Fp31, U4)>::compute_proof::<_, _>(uv_1.iter(), &lagrange_table);
         assert_eq!(
             proof_1.g.iter().map(Fp31::as_u128).collect::<Vec<_>>(),
             PROOF_1,
@@ -299,7 +340,7 @@ mod test {
         let proof_right_1 = GenericArray::<Fp31, U7>::generate(|i| proof_1.g[i] - proof_left_1[i]);
 
         // fiat-shamir
-        let pg_2 = ProofGenerator::gen_challenge_and_recurse::<U4, _, _>(
+        let pg_2 = ProofGenerator::gen_challenge_and_recurse::<_, _>(
             &proof_left_1,
             &proof_right_1,
             U_1.into_iter().map(|x| Fp31::try_from(x).unwrap()),
@@ -309,7 +350,7 @@ mod test {
 
         // next iteration
         let proof_2 =
-            ProofGenerator::<Fp31>::compute_proof::<U4, _, _>(uv_2.iter(), &lagrange_table);
+            ProofGenerator::<(Fp31, U4)>::compute_proof::<_, _>(uv_2.iter(), &lagrange_table);
         assert_eq!(
             proof_2.g.iter().map(Fp31::as_u128).collect::<Vec<_>>(),
             PROOF_2,
@@ -322,7 +363,7 @@ mod test {
         let proof_right_2 = GenericArray::<Fp31, U7>::generate(|i| proof_2.g[i] - proof_left_2[i]);
 
         // fiat-shamir
-        let pg_3 = ProofGenerator::gen_challenge_and_recurse::<U4, _, _>(
+        let pg_3 = ProofGenerator::gen_challenge_and_recurse::<_, _>(
             &proof_left_2,
             &proof_right_2,
             pg_2.u,
@@ -333,7 +374,7 @@ mod test {
         // final iteration
         let denominator = CanonicalLagrangeDenominator::<Fp31, U3>::new();
         let lagrange_table = LagrangeTable::<Fp31, U3, U2>::from(denominator);
-        let proof_3 = ProofGenerator::<Fp31>::compute_final_proof::<U2, _, _>(
+        let proof_3 = ProofGenerator::<(Fp31, U4)>::compute_final_proof::<_, _>(
             pg_3.u,
             pg_3.v,
             Fp31::try_from(P_RANDOM_WEIGHT).unwrap(),

@@ -85,6 +85,48 @@ where
     }
 }
 
+pub trait LagrangeInterpolator {
+    type Field: PrimeField;
+    type Outputs: ArrayLength;
+    type Denominator;
+
+    /// Generates an interpolator for a single output point with x coordinate `x_output`.
+    fn new(x_output: &Self::Field) -> Self;
+
+    fn eval<I, J>(&self, y_coordinates: I) -> GenericArray<Self::Field, Self::Outputs>
+    where
+        I: IntoIterator<Item = J> + Copy,
+        I::IntoIter: ExactSizeIterator,
+        J: Borrow<Self::Field>;
+}
+
+impl<F, N, M> LagrangeInterpolator for LagrangeTable<F, N, M>
+where
+    F: PrimeField,
+    N: ArrayLength,
+    M: ArrayLength,
+{
+    type Field = F;
+    type Outputs = M;
+    type Denominator = CanonicalLagrangeDenominator<F, N>;
+
+    // TODO: need to restructure this either so it only exists for M = 1, or so that
+    // it is generic to any number of output points.
+    fn new(x_output: &Self::Field) -> Self {
+        let denominator = Self::Denominator::new();
+        LagrangeTable::new(&denominator, x_output)
+    }
+
+    fn eval<I, J>(&self, y_coordinates: I) -> GenericArray<Self::Field, Self::Outputs>
+    where
+        I: IntoIterator<Item = J> + Copy,
+        I::IntoIter: ExactSizeIterator,
+        J: Borrow<Self::Field>
+    {
+        self.eval(y_coordinates)
+    }
+}
+
 impl<F, N, M> LagrangeTable<F, N, M>
 where
     F: Field,
