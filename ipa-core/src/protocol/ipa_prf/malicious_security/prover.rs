@@ -1,30 +1,29 @@
 #![allow(non_upper_case_globals)]
 
-use std::{borrow::Borrow, iter::zip, marker::PhantomData};
+use std::{borrow::Borrow, iter::zip};
 
 use crate::{
-    ff::{Fp31, Fp61BitPrime, PrimeField},
+    ff::PrimeField,
     helpers::hashing::{compute_hash, hash_to_field},
     protocol::ipa_prf::malicious_security::lagrange::{
         CanonicalLagrangeDenominator, LagrangeTable,
     },
 };
 
-pub struct ProofGenerator<F: PrimeField, const λ: usize, const P: usize, const M: usize> {
-    phantom_data: PhantomData<F>,
-}
+pub struct ProofGenerator<const λ: usize, const P: usize, const M: usize> {}
 
-impl<F: PrimeField, const λ: usize, const P: usize, const M: usize> ProofGenerator<F, λ, P, M> {
+impl<const λ: usize, const P: usize, const M: usize> ProofGenerator<λ, P, M> {
     const RECURSION_FACTOR: usize = λ;
 
     ///
     /// Distributed Zero Knowledge Proofs algorithm drawn from
     /// `https://eprint.iacr.org/2023/909.pdf`
-    fn compute_proof<J, B>(
+    fn compute_proof<F, J, B>(
         uv_iterator: J,
         lagrange_table: &LagrangeTable<F, λ, M>,
     ) -> [F; P]
     where
+        F: PrimeField,
         J: Iterator<Item = B>,
         B: Borrow<([F; λ], [F; λ])>,
     {
@@ -43,12 +42,13 @@ impl<F: PrimeField, const λ: usize, const P: usize, const M: usize> ProofGenera
         proof
     }
 
-    fn gen_challenge_and_recurse<J, B>(
+    fn gen_challenge_and_recurse<F, J, B>(
         proof_left: &[F; P],
         proof_right: &[F; P],
         uv_iterator: J,
     ) -> Vec<([F; λ], [F; λ])>
     where
+        F: PrimeField,
         J: Iterator<Item = B>,
         B: Borrow<([F; λ], [F; λ])>,
     {
@@ -87,16 +87,16 @@ impl<F: PrimeField, const λ: usize, const P: usize, const M: usize> ProofGenera
     }
 }
 
-pub type TestProofGenerator = ProofGenerator<Fp31, 4, 7, 3>;
-pub type SmallProofGenerator = ProofGenerator<Fp61BitPrime, 8, 15, 7>;
-pub type LargeProofGenerator = ProofGenerator<Fp61BitPrime, 32, 63, 31>;
+pub type TestProofGenerator = ProofGenerator<4, 7, 3>;
+pub type SmallProofGenerator = ProofGenerator<8, 15, 7>;
+pub type LargeProofGenerator = ProofGenerator<32, 63, 31>;
 
 #[cfg(all(test, unit_test))]
 mod test {
     use std::iter::zip;
 
     use crate::{
-        ff::{Fp31, PrimeField, U128Conversions},
+        ff::{Fp31, Fp61BitPrime, PrimeField, U128Conversions},
         protocol::ipa_prf::malicious_security::{
             lagrange::{CanonicalLagrangeDenominator, LagrangeTable},
             prover::{LargeProofGenerator, SmallProofGenerator, TestProofGenerator},
@@ -219,7 +219,7 @@ mod test {
 
         let uv_before = zip_chunks(&U, &V);
 
-        let denominator = CanonicalLagrangeDenominator::new();
+        let denominator = CanonicalLagrangeDenominator::<Fp61BitPrime, {SmallProofGenerator::RECURSION_FACTOR}>::new();
         let lagrange_table = LagrangeTable::from(denominator);
 
         // compute proof
@@ -240,8 +240,7 @@ mod test {
 
         let uv_before = zip_chunks(&U, &V);
 
-        let denominator =
-            CanonicalLagrangeDenominator::new();
+        let denominator = CanonicalLagrangeDenominator::<Fp61BitPrime, {LargeProofGenerator::RECURSION_FACTOR}>::new();
         let lagrange_table = LagrangeTable::from(denominator);
 
         // compute proof
