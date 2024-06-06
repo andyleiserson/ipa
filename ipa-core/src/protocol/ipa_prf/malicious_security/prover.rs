@@ -8,9 +8,10 @@ use crate::{
     protocol::{
         context::Context,
         ipa_prf::malicious_security::lagrange::{CanonicalLagrangeDenominator, LagrangeTable},
-        prss::SharedRandomness,
+        prss::{FromPrss, FromRandom},
         RecordId,
     },
+    secret_sharing::StdArray,
 };
 
 /// This struct stores intermediate `uv` values.
@@ -154,31 +155,6 @@ impl<F: PrimeField, const λ: usize, const P: usize, const M: usize> ProofGenera
             .collect::<UVValues<F, N>>()
     }
 
-    fn gen_proof_shares_from_prss<C>(ctx: &C, record_counter: &mut RecordId) -> ([F; P], [F; P])
-    where
-        C: Context,
-    {
-        let mut out_left = [F::ZERO; P];
-        let mut out_right = [F::ZERO; P];
-        // use PRSS
-        for i in 0..P {
-            let (left, right) = ctx.prss().generate_fields::<F, RecordId>(*record_counter);
-            *record_counter += 1;
-
-            out_left[i] = left;
-            out_right[i] = right;
-        }
-        (out_left, out_right)
-    }
-
-    fn gen_other_proof_share(proof: [F; P], proof_prss_share: [F; P]) -> [F; P] {
-        let mut proof_other_share = [F::ZERO; P];
-        for i in 0..P {
-            proof_other_share[i] = proof[i] - proof_prss_share[i];
-        }
-        proof_other_share
-    }
-
     /// This function is a helper function that computes the next proof
     /// from an iterator over uv values
     /// It also computes the next uv values
@@ -187,9 +163,9 @@ impl<F: PrimeField, const λ: usize, const P: usize, const M: usize> ProofGenera
     /// where
     /// `share_of_proof_from_prover_left` from left has type `Vec<[F; P]>`,
     /// `my_proof_left_share` has type `Vec<[F; P]>`,
-    pub fn gen_artefacts_from_recursive_step<C, J, B, const N: usize>(
+    pub fn gen_artifacts_from_recursive_step<C, J, B, const N: usize>(
         ctx: &C,
-        record_counter: &mut RecordId,
+        _record_counter: &mut RecordId,
         lagrange_table: &LagrangeTable<F, λ, M>,
         uv: J,
     ) -> (UVValues<F, N>, [F; P], [F; P])
@@ -197,17 +173,18 @@ impl<F: PrimeField, const λ: usize, const P: usize, const M: usize> ProofGenera
         C: Context,
         J: Iterator<Item = B> + Clone,
         B: Borrow<([F; λ], [F; λ])>,
+        StdArray<F, P>: FromRandom,
     {
         // generate next proof
         // from iterator
-        let my_proof = Self::compute_proof(uv.clone(), lagrange_table);
+        let my_proof = StdArray::from(Self::compute_proof(uv.clone(), lagrange_table));
 
         // generate proof shares from prss
         let (share_of_proof_from_prover_left, my_proof_right_share) =
-            Self::gen_proof_shares_from_prss(ctx, record_counter);
+            FromPrss::from_prss(&ctx.prss(), RecordId::FIRST);
 
         // generate prover left proof
-        let my_proof_left_share = Self::gen_other_proof_share(my_proof, my_proof_right_share);
+        let my_proof_left_share: StdArray<F, P> = my_proof - &my_proof_right_share;
 
         // compute next uv values
         // from iterator
@@ -217,8 +194,8 @@ impl<F: PrimeField, const λ: usize, const P: usize, const M: usize> ProofGenera
         //output uv values, prover left component and component from left
         (
             uv_values,
-            share_of_proof_from_prover_left,
-            my_proof_left_share,
+            share_of_proof_from_prover_left.into(),
+            my_proof_left_share.into(),
         )
     }
 }
@@ -229,18 +206,15 @@ mod test {
 
     use futures::future::try_join;
 
+    use super::*;
     use crate::{
         ff::{Fp31, Fp61BitPrime, PrimeField, U128Conversions},
         helpers::{Direction, Role},
         protocol::{
             context::Context,
-            ipa_prf::malicious_security::{
-                lagrange::{CanonicalLagrangeDenominator, LagrangeTable},
-                prover::{LargeProofGenerator, SmallProofGenerator, TestProofGenerator, UVValues},
-            },
+            ipa_prf::malicious_security::lagrange::{CanonicalLagrangeDenominator, LagrangeTable},
             RecordId,
         },
-        seq_join::SeqJoin,
         test_executor::run,
         test_fixture::{Runner, TestWorld},
     };
@@ -369,7 +343,7 @@ mod test {
             let world = TestWorld::default();
             let mut record_counter = RecordId::from(0);
             let (uv_values, _, _) =
-                TestProofGenerator::gen_artefacts_from_recursive_step::<_, _, _, 4>(
+                TestProofGenerator::gen_artifacts_from_recursive_step::<_, _, _, 4>(
                     &world.contexts()[0],
                     &mut record_counter,
                     &lagrange_table,
@@ -469,21 +443,17 @@ mod test {
         let world = TestWorld::default();
         let [helper_1_proofs, helper_2_proofs, helper_3_proofs] = world
             .semi_honest((), |ctx, ()| async move {
-                let mut record_counter = RecordId::from(0);
                 (0..NUM_PROOFS)
-                    .map(|i| {
-                        assert_eq!(i * 7, usize::from(record_counter));
-                        TestProofGenerator::gen_proof_shares_from_prss(&ctx, &mut record_counter)
-                    })
-                    .collect::<Vec<_>>()
+                    .map(|i| FromPrss::from_prss(&ctx.prss(), RecordId::from(i)))
+                    .collect::<Vec<(StdArray<Fp31, 7>, StdArray<Fp31, 7>)>>()
             })
             .await;
 
         for i in 0..NUM_PROOFS {
             // Destructure
-            let (h1_proof_left, h1_proof_right) = helper_1_proofs[i];
-            let (h2_proof_left, h2_proof_right) = helper_2_proofs[i];
-            let (h3_proof_left, h3_proof_right) = helper_3_proofs[i];
+            let (h1_proof_left, h1_proof_right) = &helper_1_proofs[i];
+            let (h2_proof_left, h2_proof_right) = &helper_2_proofs[i];
+            let (h3_proof_left, h3_proof_right) = &helper_3_proofs[i];
 
             // Check share consistency
             assert_eq!(h1_proof_right, h2_proof_left);
@@ -497,17 +467,17 @@ mod test {
 
             if i > 0 {
                 // The record ID should be incremented, ensuring each proof is unique
-                assert_ne!(helper_1_proofs[i - 1].1, h1_proof_right);
-                assert_ne!(helper_2_proofs[i - 1].1, h2_proof_right);
-                assert_ne!(helper_3_proofs[i - 1].1, h3_proof_right);
+                assert_ne!(helper_1_proofs[i - 1].1, *h1_proof_right);
+                assert_ne!(helper_2_proofs[i - 1].1, *h2_proof_right);
+                assert_ne!(helper_3_proofs[i - 1].1, *h3_proof_right);
             }
         }
     }
 
     fn assert_two_part_secret_sharing(
         expected_proof: [u128; 7],
-        left_share: [Fp31; 7],
-        right_share: [Fp31; 7],
+        left_share: StdArray<Fp31, 7>,
+        right_share: StdArray<Fp31, 7>,
     ) {
         for (expected_value, (left, right)) in zip(expected_proof, zip(left_share, right_share)) {
             assert_eq!(expected_value, (left + right).as_u128());
@@ -523,44 +493,32 @@ mod test {
         let [(h1_proof_left, h1_proof_right), (h2_proof_left, h2_proof_right), (h3_proof_left, h3_proof_right)] =
             world
                 .semi_honest((), |ctx, ()| async move {
-                    let mut record_counter = RecordId::from(0);
                     let (proof_share_left, my_share_of_right) =
-                        TestProofGenerator::gen_proof_shares_from_prss(&ctx, &mut record_counter);
+                        FromPrss::from_prss(&ctx.prss(), RecordId::FIRST);
                     let proof_u128 = match ctx.role() {
                         Role::H1 => PROOF_1,
                         Role::H2 => PROOF_2,
                         Role::H3 => PROOF_3,
                     };
-                    let proof = proof_u128.map(Fp31::truncate_from);
-                    let proof_share_right =
-                        TestProofGenerator::gen_other_proof_share(proof, proof_share_left);
+                    let proof: StdArray<Fp31, 7> = proof_u128.map(Fp31::truncate_from).into();
+                    let proof_share_right = proof - proof_share_left;
 
                     // set up context
-                    let c = ctx
-                        .narrow("send_proof_share")
-                        .set_total_records(proof_share_right.len());
+                    let c = ctx.narrow("send_proof_share").set_total_records(1);
 
                     // set up channels
-                    let send_channel_right =
-                        &c.send_channel::<Fp31>(ctx.role().peer(Direction::Right));
-                    let recv_channel_left =
-                        &c.recv_channel::<Fp31>(ctx.role().peer(Direction::Left));
+                    let send_channel_right = &c.send_channel(ctx.role().peer(Direction::Right));
+                    let recv_channel_left = &c.recv_channel(ctx.role().peer(Direction::Left));
 
                     // send share
-                    let (my_share_of_left_vec, _) = try_join(
-                        c.parallel_join((0..proof_share_right.len()).map(|i| async move {
-                            recv_channel_left.receive(RecordId::from(i)).await
-                        })),
-                        c.parallel_join(proof_share_right.iter().enumerate().map(
-                            |(i, elem)| async move {
-                                send_channel_right.send(RecordId::from(i), elem).await
-                            },
-                        )),
+                    let (my_share_of_left_vec, ()) = try_join(
+                        recv_channel_left.receive(RecordId::FIRST),
+                        send_channel_right.send(RecordId::FIRST, proof_share_right),
                     )
                     .await
                     .unwrap();
 
-                    (my_share_of_left_vec.try_into().unwrap(), my_share_of_right)
+                    (my_share_of_left_vec, my_share_of_right)
                 })
                 .await;
 

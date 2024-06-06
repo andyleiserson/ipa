@@ -2,12 +2,14 @@ use std::{
     array,
     borrow::Borrow,
     fmt::Debug,
-    ops::{Add, AddAssign, Mul, Neg, Not, Sub, SubAssign},
+    ops::{Add, AddAssign, Deref, Mul, Neg, Not, Sub, SubAssign},
 };
 
 use generic_array::{ArrayLength, GenericArray};
-use typenum::{U16, U256, U32, U64};
+use typenum::{U16, U256, U32, U64, U7};
 
+#[cfg(any(test, feature = "weak-field"))]
+use crate::ff::Fp31;
 use crate::{
     const_assert_eq,
     error::LengthError,
@@ -25,6 +27,26 @@ use crate::{
 ///    should never be necessary in properly vectorized code.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StdArray<V: SharedValue, const N: usize>(pub(super) [V; N]);
+
+impl<V: SharedValue, const N: usize> From<[V; N]> for StdArray<V, N> {
+    fn from(value: [V; N]) -> Self {
+        Self(value)
+    }
+}
+
+impl<V: SharedValue, const N: usize> From<StdArray<V, N>> for [V; N] {
+    fn from(value: StdArray<V, N>) -> Self {
+        value.0
+    }
+}
+
+impl<V: SharedValue, const N: usize> Deref for StdArray<V, N> {
+    type Target = [V; N];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 impl<V, T, const N: usize> PartialEq<T> for StdArray<V, N>
 where
@@ -336,6 +358,10 @@ impl_from_random!(Fp25519, 16, U32, 2);
 
 impl_from_random!(Fp32BitPrime, 32, U32, 1);
 
+// Implementations for DZKPs
+#[cfg(any(test, feature = "weak-field"))]
+impl_from_random!(Fp31, 7, U7, 1);
+
 impl<V: SharedValue> Serializable for StdArray<V, 1> {
     type Size = <V as Serializable>::Size;
     type DeserializationError = <V as Serializable>::DeserializationError;
@@ -382,6 +408,9 @@ macro_rules! impl_serializable {
         }
     };
 }
+
+// Implementations for DZKPs
+impl_serializable!(7, U7);
 
 impl_serializable!(16, U16);
 impl_serializable!(32, U32);
