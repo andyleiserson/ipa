@@ -460,9 +460,14 @@ impl Batches {
     }
 
     fn push(&mut self, gate: Gate, record_id: RecordId, segment: Segment) {
-        let batch_idx = record_id / self.records_per_batch;
-        assert!(batch_idx < first_batch)
-
+        let batch_idx = usize::from(record_id) / self.records_per_batch;
+        let batch_offset = batch_idx.checked_sub(self.first_batch)
+            .expect("batches should be processed in order");
+        if self.batches.len() <= batch_offset {
+            // TODO: this should do something involving or similar to increment_record_ids
+            self.batches.resize_with(batch_offset, || Batch::new(self.records_per_batch));
+        }
+        self.batches[batch_offset].push(gate, record_id, segment);
     }
 }
 
@@ -645,6 +650,7 @@ pub trait DZKPValidator: Clone + Send + Sync {
         F: Future<Output = O> + Send + 'st,
         O: Send + Sync + 'static,
     {
+        todo!(); /*
         // chunk_size is undefined in the semi-honest setting, set it to 10, ideally it would be 1
         // but there is some overhead
         seq_join::<'st, S, F, O>(self.context().active_work(), source)
@@ -654,6 +660,7 @@ pub trait DZKPValidator: Clone + Send + Sync {
                 self.validate_chunk(context_counter).map_ok(|()| chunk)
             })
             .try_flatten_iters()
+        */
     }
 }
 
@@ -695,7 +702,7 @@ impl<'a, B: ShardBinding> DZKPValidator for SemiHonestDZKPValidator<'a, B> {
 /// The implementation of `validate` of the `DZKPValidator` trait depends on generic `DF`
 #[derive(Clone)]
 pub struct MaliciousDZKPValidator<'a> {
-    batch_ref: Arc<Mutex<Batch>>,
+    batch_ref: Arc<Mutex<Batches>>,
     protocol_ctx: MaliciousDZKPUpgraded<'a>,
     validate_ctx: Base<'a>,
 }
@@ -842,7 +849,7 @@ impl<'a> MaliciousDZKPValidator<'a> {
         let list = Batches::new(records_per_batch);
         let batch_ref = Arc::new(Mutex::new(list));
         let dzkp_batch = DZKPBatch {
-            inner: Arc::downgrade(&batch_list),
+            inner: Arc::downgrade(&batch_ref),
         };
         let validate_ctx = ctx.narrow(&Step::DZKPValidate).validator_context();
         let protocol_ctx = ctx.dzkp_upgrade(&Step::DZKPMaliciousProtocol, dzkp_batch);
