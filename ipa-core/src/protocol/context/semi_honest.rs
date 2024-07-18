@@ -155,7 +155,7 @@ impl<'a, B: ShardBinding> UpgradableContext for Context<'a, B> {
 
     type DZKPValidator = SemiHonestDZKPValidator<'a, B>;
 
-    fn dzkp_validator(self, _max_multiplications_per_gate: usize) -> Self::DZKPValidator {
+    fn dzkp_validator(self, _records_per_batch: usize) -> Self::DZKPValidator {
         Self::DZKPValidator::new(self.inner)
     }
 }

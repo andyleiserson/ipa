@@ -113,7 +113,7 @@ pub trait UpgradableContext: Context {
 
     type DZKPValidator: DZKPValidator;
 
-    fn dzkp_validator(self, max_multiplications_per_gate: usize) -> Self::DZKPValidator;
+    fn dzkp_validator(self, records_per_batch: usize) -> Self::DZKPValidator;
 }
 
 #[async_trait]

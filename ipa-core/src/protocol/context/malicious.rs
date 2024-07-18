@@ -161,8 +161,8 @@ impl<'a> UpgradableContext for Context<'a> {
 
     type DZKPValidator = MaliciousDZKPValidator<'a>;
 
-    fn dzkp_validator(self, max_multiplications_per_gate: usize) -> Self::DZKPValidator {
-        MaliciousDZKPValidator::new(self, max_multiplications_per_gate)
+    fn dzkp_validator(self, records_per_batch: usize) -> Self::DZKPValidator {
+        MaliciousDZKPValidator::new(self, records_per_batch)
     }
 }
 

@@ -1,6 +1,6 @@
 use std::{
     cmp,
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     fmt::Debug,
     sync::atomic::{AtomicUsize, Ordering},
 };
@@ -231,17 +231,17 @@ impl<'a> SegmentEntry<'a> {
 /// `MultiplicationInputsBatch` stores a batch of multiplication inputs in a vector of `MultiplicationInputsBlock`.
 /// `first_record` is the first `RecordId` for the current batch.
 /// `last_record` keeps track of the highest record that has been added to the batch.
-/// `max_multiplications` is the maximum amount of multiplications performed within a this batch.
-/// It is used to determine the vector length during the allocation.
-/// If there are more multiplications, it will cause a panic!
-/// `multiplication_bit_size` is the bit size of a single multiplication. The size will be consistent
-/// across all multiplications of a gate.
+/// `records_per_batch` is the number of records in each batch. It is used to determine the vector
+/// length during the allocation. If there are more multiplications, it will cause a panic!
+/// `multiplication_bit_size` is the bit size of a single multiplication (i.e. the vectorization
+/// dimension used by the protocol). The size will be consistent across all multiplications of a
+/// gate.
 /// `is_empty` keeps track of whether any value has been added
 #[derive(Clone, Debug)]
 struct MultiplicationInputsBatch {
     first_record: RecordId,
     last_record: RecordId,
-    max_multiplications: usize,
+    records_per_batch: usize,
     multiplication_bit_size: usize,
     is_empty: bool,
     vec: Vec<MultiplicationInputsBlock>,
@@ -250,17 +250,17 @@ struct MultiplicationInputsBatch {
 impl MultiplicationInputsBatch {
     /// Creates a new store.
     /// `first_record` and `last_record` is initialized to `0`.
-    /// The size of the allocated vector is `(max_multiplications * multiplication_bit_size + 255) / 256`
-    fn new(max_multiplications: usize, multiplication_bit_size: usize) -> Self {
+    /// The size of the allocated vector is `(records_per_batch * multiplication_bit_size + 255) / 256`
+    fn new(records_per_batch: usize, multiplication_bit_size: usize) -> Self {
         Self {
             first_record: RecordId::FIRST,
             last_record: RecordId::FIRST,
-            max_multiplications,
+            records_per_batch,
             multiplication_bit_size,
             is_empty: false,
             vec: vec![
                 MultiplicationInputsBlock::default();
-                (max_multiplications * multiplication_bit_size + 255) >> BIT_ARRAY_SHIFT
+                (records_per_batch * multiplication_bit_size + 255) >> BIT_ARRAY_SHIFT
             ],
         }
     }
@@ -279,7 +279,7 @@ impl MultiplicationInputsBatch {
         // currently, MultiplicationInputsBatch does not store the Gate information, maybe we should store it here
         // such that we can add it to the metrics counter
         metrics::increment_counter!(DZKP_BATCH_INCREMENTS,
-            ALLOCATED_AMOUNT => self.max_multiplications.to_string(),
+            ALLOCATED_AMOUNT => self.records_per_batch.to_string(),
             ACTUAL_AMOUNT => (usize::from(self.last_record)-usize::from(self.first_record)+1usize).to_string(),
             UNIT_SIZE => self.multiplication_bit_size.to_string(),
         );
@@ -303,7 +303,7 @@ impl MultiplicationInputsBatch {
     /// Panics when segments have different lengths across records.
     /// It also Panics when the `record_id` is smaller
     /// than the first record of the batch, i.e. `first_record`
-    /// or too large, i.e. `first_record+max_multiplications`
+    /// or too large, i.e. `first_record+records_per_batch`
     fn insert_segment(&mut self, record_id: RecordId, segment: Segment) {
         // check segment size
         debug_assert_eq!(segment.len(), self.multiplication_bit_size);
@@ -311,10 +311,10 @@ impl MultiplicationInputsBatch {
         // panics when record_id is out of bounds
         assert!(record_id >= self.first_record);
         assert!(
-            record_id < RecordId::from(self.max_multiplications + usize::from(self.first_record)),
+            record_id < RecordId::from(self.records_per_batch + usize::from(self.first_record)),
             "record_id out of range in insert_segment. record {record_id} is beyond \
              segment of length {} starting at {}",
-            self.max_multiplications,
+            self.records_per_batch,
             self.first_record,
         );
 
@@ -335,7 +335,7 @@ impl MultiplicationInputsBatch {
     /// Panics when `bit_length` and `block_id` are out of bounds.
     /// It also Panics when the `record_id` is smaller
     /// than the first record of the batch, i.e. `first_record`
-    /// or too large, i.e. `first_record+max_multiplications`
+    /// or too large, i.e. `first_record+records_per_batch`
     fn insert_segment_small(&mut self, record_id: RecordId, segment: Segment) {
         // check length
         debug_assert!(segment.len() <= 256);
@@ -343,7 +343,7 @@ impl MultiplicationInputsBatch {
         // panics when record_id is out of bounds
         assert!(record_id >= self.first_record);
         assert!(
-            record_id < RecordId::from(self.max_multiplications + usize::from(self.first_record))
+            record_id < RecordId::from(self.records_per_batch + usize::from(self.first_record))
         );
 
         // panics when record_id is less than first_record
@@ -382,7 +382,7 @@ impl MultiplicationInputsBatch {
     /// Panics when segment is not a multiple of 256 or is out of bounds.
     /// It also Panics when the `record_id` is smaller
     /// than the first record of the batch, i.e. `first_record`
-    /// or too large, i.e. `first_record+max_multiplications`
+    /// or too large, i.e. `first_record+records_per_batch`
     fn insert_segment_large(&mut self, record_id: RecordId, segment: &Segment) {
         // check length
         debug_assert_eq!(segment.len() % 256, 0);
@@ -390,7 +390,7 @@ impl MultiplicationInputsBatch {
         // panics when record_id is out of bounds
         assert!(record_id >= self.first_record);
         assert!(
-            record_id < RecordId::from(self.max_multiplications + usize::from(self.first_record))
+            record_id < RecordId::from(self.records_per_batch + usize::from(self.first_record))
         );
 
         let id_within_batch = usize::from(record_id) - usize::from(self.first_record);
@@ -443,6 +443,29 @@ impl MultiplicationInputsBatch {
     }
 }
 
+#[derive(Debug)]
+struct Batches {
+    batches: VecDeque<Batch>,
+    first_batch: usize,
+    records_per_batch: usize,
+}
+
+impl Batches {
+    fn new(records_per_batch: usize) -> Self {
+        Self {
+            batches: VecDeque::new(),
+            first_batch: 0,
+            records_per_batch,
+        }
+    }
+
+    fn push(&mut self, gate: Gate, record_id: RecordId, segment: Segment) {
+        let batch_idx = record_id / self.records_per_batch;
+        assert!(batch_idx < first_batch)
+
+    }
+}
+
 /// `Batch` collects a batch of `MultiplicationInputsBatch` in an ordered map.
 /// Binary tree map gives the consistent ordering of multiplications per batch across
 /// all helpers, so it is important to preserve.
@@ -451,16 +474,17 @@ impl MultiplicationInputsBatch {
 /// Corresponds to `AccumulatorState` of the MAC based malicious validator.
 #[derive(Debug)]
 struct Batch {
-    max_multiplications_per_gate: usize,
+    records_per_batch: usize,
     inner: BTreeMap<Gate, MultiplicationInputsBatch>,
     notify: Arc<Notify>,
     records: AtomicUsize,
 }
 
 impl Batch {
-    fn new(max_multiplications_per_gate: usize) -> Self {
+    fn new(records_per_batch: usize) -> Self {
         Self {
             max_multiplications_per_gate,
+            records_per_batch,
             inner: BTreeMap::<Gate, MultiplicationInputsBatch>::default(),
             notify: Arc::new(Notify::new()),
             records: AtomicUsize::new(0),
@@ -477,7 +501,7 @@ impl Batch {
         self.inner
             .entry(gate)
             .or_insert_with(|| {
-                MultiplicationInputsBatch::new(self.max_multiplications_per_gate, segment.len())
+                MultiplicationInputsBatch::new(self.records_per_batch, segment.len())
             })
             .insert_segment(record_id, segment);
     }
@@ -539,7 +563,7 @@ impl Batch {
 /// Corresponds to `MaliciousAccumulator` of the MAC based malicious validator.
 #[derive(Clone, Debug)]
 pub struct DZKPBatch {
-    inner: Weak<Mutex<Batch>>,
+    inner: Weak<Mutex<Batches>>,
 }
 
 impl DZKPBatch {
@@ -550,8 +574,8 @@ impl DZKPBatch {
     pub fn push(&self, gate: Gate, record_id: RecordId, segment: Segment) {
         let arc_mutex = self.inner.upgrade().unwrap();
         // LOCK BEGIN
-        let mut batch = arc_mutex.lock().unwrap();
-        batch.push(gate, record_id, segment);
+        let mut batches = arc_mutex.lock().unwrap();
+        batches.push(gate, record_id, segment);
         // LOCK END
     }
 
@@ -783,7 +807,7 @@ impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
         let notify = {
             let batch = self.batch_ref.lock().unwrap();
             let prev_records = batch.records.fetch_add(1, Ordering::Relaxed);
-            if prev_records == batch.max_multiplications_per_gate - 1 {
+            if prev_records == batch.records_per_batch - 1 {
                 None
             } else {
                 Some(batch.notify.clone())
@@ -814,16 +838,16 @@ impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
 
 impl<'a> MaliciousDZKPValidator<'a> {
     #[must_use]
-    pub fn new(ctx: MaliciousContext<'a>, max_multiplications_per_gate: usize) -> Self {
-        let list = Batch::new(max_multiplications_per_gate);
-        let batch_list = Arc::new(Mutex::new(list));
+    pub fn new(ctx: MaliciousContext<'a>, records_per_batch: usize) -> Self {
+        let list = Batches::new(records_per_batch);
+        let batch_ref = Arc::new(Mutex::new(list));
         let dzkp_batch = DZKPBatch {
             inner: Arc::downgrade(&batch_list),
         };
         let validate_ctx = ctx.narrow(&Step::DZKPValidate).validator_context();
         let protocol_ctx = ctx.dzkp_upgrade(&Step::DZKPMaliciousProtocol, dzkp_batch);
         Self {
-            batch_ref: batch_list,
+            batch_ref,
             protocol_ctx,
             validate_ctx,
         }
@@ -925,7 +949,7 @@ mod tests {
     async fn complex_circuit_dzkp(
         count: usize,
         chunk_size: usize,
-        max_multiplications_per_gate: usize,
+        records_per_batch: usize,
     ) -> Result<(), Error> {
         let world = TestWorld::default();
 
@@ -952,7 +976,7 @@ mod tests {
             .into_iter()
             .zip([h1_shares.clone(), h2_shares.clone(), h3_shares.clone()])
             .map(|(ctx, input_shares)| async move {
-                let v = ctx.dzkp_validator(max_multiplications_per_gate);
+                let v = ctx.dzkp_validator(records_per_batch);
                 // test whether narrow works
                 let m_ctx = v.context().narrow(&Step::DZKPMaliciousProtocol);
 
@@ -989,7 +1013,7 @@ mod tests {
             .into_iter()
             .zip([h1_shares, h2_shares, h3_shares])
             .map(|(ctx, input_shares)| async move {
-                let v = ctx.dzkp_validator(max_multiplications_per_gate);
+                let v = ctx.dzkp_validator(records_per_batch);
                 // test whether narrow works
                 let m_ctx = v.context().narrow(&Step::DZKPMaliciousProtocol);
 
@@ -1268,7 +1292,7 @@ mod tests {
                 // LOCK BEGIN
                 let mut batch = validator.batch_ref.lock().unwrap();
 
-                let max_mult = batch.max_multiplications_per_gate;
+                let max_mult = batch.records_per_batch;
                 mem::replace(&mut *batch, Batch::new(max_mult))
             })
             .await;
