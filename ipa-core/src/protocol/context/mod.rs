@@ -1,3 +1,4 @@
+mod batcher;
 pub mod dzkp_field;
 pub mod dzkp_malicious;
 pub mod dzkp_semi_honest;
