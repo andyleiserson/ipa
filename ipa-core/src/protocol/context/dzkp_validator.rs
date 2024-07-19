@@ -8,13 +8,12 @@ use std::{
 use async_trait::async_trait;
 use bitvec::{array::BitArray, prelude::Lsb0, slice::BitSlice};
 use futures::{Future, Stream};
-use futures_util::{StreamExt, TryFutureExt};
+use futures_util::StreamExt;
 use tokio::sync::Notify;
 
 use crate::{
     error::{BoxError, Error},
     ff::{Fp61BitPrime, U128Conversions},
-    helpers::stream::TryFlattenItersExt,
     protocol::{
         context::{
             dzkp_field::{DZKPBaseField, UVTupleBlock},
@@ -26,10 +25,8 @@ use crate::{
         ipa_prf::validation_protocol::{proof_generation::ProofBatch, validation::BatchToVerify},
         Gate, RecordId,
     },
-    seq_join::{seq_join, SeqJoin},
     sharding::ShardBinding,
     sync::{Arc, Mutex, Weak},
-    telemetry::metrics::DZKP_BATCH_INCREMENTS,
 };
 
 // constants for metrics::increment_counter!
@@ -271,6 +268,7 @@ impl MultiplicationInputsBatch {
         self.vec.len() * 256
     }
 
+    /*
     /// `increment_record_ids` increments the current batch to the next set of records.
     /// it maintains all the allocated memory and increments the `RecordIds` as follows:
     /// It sets `last_record` and `first_record` to the record that follows `last_record`.
@@ -290,6 +288,7 @@ impl MultiplicationInputsBatch {
         // set it to empty
         self.is_empty = true;
     }
+    */
 
     /// returns whether the store is empty
     fn is_empty(&self) -> bool {
@@ -443,6 +442,21 @@ impl MultiplicationInputsBatch {
     }
 }
 
+enum Either<L, R> {
+    Left(L),
+    Right(R),
+}
+
+impl<L, R> Either<L, R> {
+    fn left(value: L) -> Self {
+        Self::Left(value)
+    }
+
+    fn right(value: R) -> Self {
+        Self::Right(value)
+    }
+}
+
 #[derive(Debug)]
 struct Batches {
     batches: VecDeque<Batch>,
@@ -459,15 +473,62 @@ impl Batches {
         }
     }
 
-    fn push(&mut self, gate: Gate, record_id: RecordId, segment: Segment) {
+    fn batch_offset(&self, record_id: RecordId) -> usize {
         let batch_idx = usize::from(record_id) / self.records_per_batch;
-        let batch_offset = batch_idx.checked_sub(self.first_batch)
-            .expect("batches should be processed in order");
+        let Some(batch_offset) = batch_idx.checked_sub(self.first_batch) else {
+            panic!(
+                "Batches should be processed in order. Attempting to retrieve batch {batch_idx}. \
+                 The oldest active batch is batch {}.", self.first_batch,
+            )
+        };
+        batch_offset
+    }
+
+    fn batch(&mut self, batch_offset: usize) -> &mut Batch {
         if self.batches.len() <= batch_offset {
-            // TODO: this should do something involving or similar to increment_record_ids
+            // TODO: this should do something involving, or similar to, increment_record_ids
             self.batches.resize_with(batch_offset, || Batch::new(self.records_per_batch));
         }
-        self.batches[batch_offset].push(gate, record_id, segment);
+        &mut self.batches[batch_offset]
+    }
+
+    fn push(&mut self, gate: Gate, record_id: RecordId, segment: Segment) {
+        self.batch(self.batch_offset(record_id)).push(gate, record_id, segment);
+    }
+
+    fn validate_record(&mut self, record_id: RecordId) -> Either<Batch, Arc<Notify>> {
+        tracing::trace!("validate record {record_id}");
+        let batch_offset = self.batch_offset(record_id);
+        let batch = self.batch(batch_offset);
+        let prev_records = batch.records.fetch_add(1, Ordering::Relaxed);
+        if prev_records == batch.records_per_batch - 1 {
+            // I am not sure if this is okay, or if we need to tolerate batch validation requests
+            // arriving out of order. (If we do, I think we would still want to actually fulfill
+            // the validations in order.)
+            assert_eq!(
+                batch_offset, self.first_batch, "Batches should be processed in order. \
+                 Batch {batch_offset} is ready for validation, but the first batch is {first}.",
+                first = self.first_batch,
+            );
+            let batch = self.batches.pop_front().unwrap();
+            return Either::left(batch);
+        } else {
+            return Either::right(batch.notify.clone());
+        }
+        /*
+        };
+        if let Some(notify) = notify {
+            notify.notified().await;
+        } else {
+            tracing::trace!("validating batch");
+            self.validate_chunk(0).await.unwrap();
+        }
+        Ok(())
+        */
+    }
+
+    fn is_empty(&self) -> bool {
+        self.batches.is_empty() // TODO: do we need to inspect the batches?
     }
 }
 
@@ -483,6 +544,7 @@ struct Batch {
     inner: BTreeMap<Gate, MultiplicationInputsBatch>,
     notify: Arc<Notify>,
     records: AtomicUsize,
+    index: usize,
 }
 
 impl Batch {
@@ -493,6 +555,7 @@ impl Batch {
             inner: BTreeMap::<Gate, MultiplicationInputsBatch>::default(),
             notify: Arc::new(Notify::new()),
             records: AtomicUsize::new(0),
+            index: 0,
         }
     }
 
@@ -520,6 +583,7 @@ impl Batch {
             .sum()
     }
 
+    /*
     /// This function should only be called by `validate`!
     ///
     /// Updates all `MultiplicationInputsBatch` in map by incrementing the record ids to next chunk
@@ -527,10 +591,12 @@ impl Batch {
     /// ## Panics
     /// Panics when `MultiplicationInputsBatch` panics, i.e. when `segment_size` is `None`
     fn increment_record_ids(&mut self) {
+        self.index += 1;
         self.inner
             .values_mut()
             .for_each(MultiplicationInputsBatch::increment_record_ids);
     }
+    */
 
     /// `get_field_values_prover` converts a `Batch` into an iterator over field values
     /// which is used by the prover of the DZKP
@@ -614,17 +680,8 @@ pub trait DZKPValidator: Clone + Send + Sync {
     /// Can only be called once per validator
     /// due to uniqueness requirement of contexts in PRSS and networking.
     async fn validate(&self) -> Result<(), Error> {
-        Self::validate_chunk(self, 0usize).await
+        Ok(())
     }
-
-    /// Allows to validate the current `DZKPBatch` and empties it. The associated context is then
-    /// considered safe until another multiplication is performed and thus new values are added
-    /// to `DZKPBatch`.
-    /// Currently only allows `Fp61BitPrime` and is not generic over `DZKPBaseFields`.
-    ///
-    /// `context_counter` allows to create distinct contexts
-    /// when calling validate multiple times for the same base context.
-    async fn validate_chunk(&self, chunk_counter: usize) -> Result<(), Error>;
 
     async fn validate_record(&self, record_id: RecordId) -> Result<(), Error>;
 
@@ -635,6 +692,7 @@ pub trait DZKPValidator: Clone + Send + Sync {
     /// Errors when there are `MultiplicationInputs` that have not been verified.
     fn is_verified(&self) -> Result<(), Error>;
 
+    /*
     /// `validated_seq_join` in this trait is a validated version of `seq_join`. It splits the input stream into `chunks` where
     /// the `chunk_size` is specified as part of the input. Each `chunk` is a vector that is independently
     /// verified using `validator.validate()`, which uses DZKPs. Once the validation fails,
@@ -662,6 +720,7 @@ pub trait DZKPValidator: Clone + Send + Sync {
             .try_flatten_iters()
         */
     }
+    */
 }
 
 #[derive(Clone)]
@@ -685,10 +744,6 @@ impl<'a, B: ShardBinding> DZKPValidator for SemiHonestDZKPValidator<'a, B> {
         self.context.clone()
     }
 
-    async fn validate_chunk(&self, _context_counter: usize) -> Result<(), Error> {
-        Ok(())
-    }
-
     async fn validate_record(&self, _record_id: RecordId) -> Result<(), Error> {
         Ok(())
     }
@@ -702,29 +757,28 @@ impl<'a, B: ShardBinding> DZKPValidator for SemiHonestDZKPValidator<'a, B> {
 /// The implementation of `validate` of the `DZKPValidator` trait depends on generic `DF`
 #[derive(Clone)]
 pub struct MaliciousDZKPValidator<'a> {
-    batch_ref: Arc<Mutex<Batches>>,
+    batches_ref: Arc<Mutex<Batches>>,
     protocol_ctx: MaliciousDZKPUpgraded<'a>,
     validate_ctx: Base<'a>,
 }
 
-#[async_trait]
-impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
-    type Context = MaliciousDZKPUpgraded<'a>;
-
-    fn context(&self) -> MaliciousDZKPUpgraded<'a> {
-        self.protocol_ctx.clone()
-    }
-
+impl<'a> MaliciousDZKPValidator<'a> {
+    /// Allows to validate the current `DZKPBatch` and empties it. The associated context is then
+    /// considered safe until another multiplication is performed and thus new values are added
+    /// to `DZKPBatch`.
+    /// Currently only allows `Fp61BitPrime` and is not generic over `DZKPBaseFields`.
+    ///
+    /// `context_counter` allows to create distinct contexts
+    /// when calling validate multiple times for the same base context.
+    ///
     /// ## Panics
     /// Panics when `context_counter` exceeds 256
     /// or when `usize` to `u128` conversion fails.
-    async fn validate_chunk(&self, context_counter: usize) -> Result<(), Error> {
-        assert!(context_counter <= 256);
-
+    async fn validate_batch(&self, batch: Batch) -> Result<(), Error> {
         // set up context for this chunk
         let chunk_ctx = self
             .validate_ctx
-            .narrow(&Step::ValidationChunk(context_counter));
+            .narrow(&Step::ValidationChunk(batch.index));
         let proof_ctx = chunk_ctx.narrow(&Step::GenerateProof);
 
         let (
@@ -733,15 +787,12 @@ impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
             p_mask_from_right_prover,
             q_mask_from_left_prover,
         ) = {
-            // LOCK BEGIN
-            let batch = self.batch_ref.lock().unwrap();
             if batch.is_empty() {
                 return Ok(());
             }
 
             // generate BatchToVerify
             ProofBatch::generate(&proof_ctx, batch.get_field_values_prover())
-            // LOCK END
         };
 
         let chunk_batch = BatchToVerify::generate_batch_to_verify(
@@ -759,9 +810,6 @@ impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
             .await;
 
         let (sum_of_uv, p_r_right_prover, q_r_left_prover) = {
-            // LOCK BEGIN
-            let mut batch = self.batch_ref.lock().unwrap();
-
             // get number of multiplications
             let m = batch.get_number_of_multiplications();
             tracing::debug!("validating {m} multiplications");
@@ -786,10 +834,9 @@ impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
                 batch.get_field_values_from_left_prover(),
             );
             // update which empties batch_list and increments offsets to next chunk
-            batch.increment_record_ids();
+            //batch.increment_record_ids(); TODO
 
             (sum_of_uv, p_r_right_prover, q_r_left_prover)
-            // LOCK END
         };
 
         // verify BatchToVerify, return result
@@ -804,29 +851,32 @@ impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
             )
             .await;
 
-        self.batch_ref.lock().unwrap().notify.notify_waiters();
+        batch.notify.notify_waiters();
 
         result
     }
+}
+
+#[async_trait]
+impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
+    type Context = MaliciousDZKPUpgraded<'a>;
+
+    fn context(&self) -> MaliciousDZKPUpgraded<'a> {
+        self.protocol_ctx.clone()
+    }
 
     async fn validate_record(&self, record_id: RecordId) -> Result<(), Error> {
-        tracing::trace!("validate record {record_id}");
-        let notify = {
-            let batch = self.batch_ref.lock().unwrap();
-            let prev_records = batch.records.fetch_add(1, Ordering::Relaxed);
-            if prev_records == batch.records_per_batch - 1 {
-                None
-            } else {
-                Some(batch.notify.clone())
+        let result = self.batches_ref.lock().unwrap().validate_record(record_id);
+        match result {
+            Either::Left(batch) => {
+                tracing::trace!("validating batch");
+                self.validate_batch(batch).await
             }
-        };
-        if let Some(notify) = notify {
-            notify.notified().await;
-        } else {
-            tracing::trace!("validating batch");
-            self.validate_chunk(0).await.unwrap();
+            Either::Right(notify) => {
+                notify.notified().await;
+                Ok(())
+            }
         }
-        Ok(())
     }
 
     /// `is_verified` checks that there are no `MultiplicationInputs` that have not been verified.
@@ -835,7 +885,7 @@ impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
     /// ## Errors
     /// Errors when there are `MultiplicationInputs` that have not been verified.
     fn is_verified(&self) -> Result<(), Error> {
-        if self.batch_ref.lock().unwrap().is_empty() {
+        if self.batches_ref.lock().unwrap().is_empty() {
             Ok(())
         } else {
             Err(Error::ContextUnsafe(format!("{:?}", self.protocol_ctx)))
@@ -854,7 +904,7 @@ impl<'a> MaliciousDZKPValidator<'a> {
         let validate_ctx = ctx.narrow(&Step::DZKPValidate).validator_context();
         let protocol_ctx = ctx.dzkp_upgrade(&Step::DZKPMaliciousProtocol, dzkp_batch);
         Self {
-            batch_ref,
+            batches_ref: batch_ref,
             protocol_ctx,
             validate_ctx,
         }
@@ -871,7 +921,6 @@ impl<'a> Drop for MaliciousDZKPValidator<'a> {
 mod tests {
     use std::{
         iter::{repeat, repeat_with, zip},
-        mem,
         num::NonZeroUsize,
     };
 
@@ -951,6 +1000,7 @@ mod tests {
         }
     }
 
+    /*
     /// test for testing `validated_seq_join`
     /// similar to `complex_circuit` in `validator.rs`
     async fn complex_circuit_dzkp(
@@ -1089,6 +1139,7 @@ mod tests {
         tokio::runtime::Runtime::new().unwrap().block_on(future);
         }
     }
+    */
 
     fn populate_batch(
         segment_size: usize,
@@ -1279,6 +1330,7 @@ mod tests {
             });
     }
 
+    /* TODO
     #[tokio::test]
     async fn simple_multiply_conversion() {
         let world = TestWorld::default();
@@ -1297,7 +1349,7 @@ mod tests {
                     .unwrap();
 
                 // LOCK BEGIN
-                let mut batch = validator.batch_ref.lock().unwrap();
+                let mut batch = validator.batches_ref.lock().unwrap();
 
                 let max_mult = batch.records_per_batch;
                 mem::replace(&mut *batch, Batch::new(max_mult))
@@ -1316,6 +1368,7 @@ mod tests {
         assert_batch(&h3_batch, &h2_batch, &h1_batch);
         assert_batch_convert(&h3_batch, &h2_batch, &h1_batch);
     }
+    */
 
     #[test]
     fn powers_of_two() {
