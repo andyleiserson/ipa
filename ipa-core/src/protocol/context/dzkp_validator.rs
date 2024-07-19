@@ -1181,15 +1181,15 @@ mod tests {
         for segment_size in [8usize, 512usize] {
             // generate batch for the prover
             let mut batch_prover = Batch::default();
-            batch_prover.inner.insert(Gate::default(), MultiplicationInputsBatch::new(1024, RecordId::FIRST, segment_size));
+            batch_prover.inner.insert(Gate::default(), MultiplicationInputsBatch::new(1024 / segment_size, RecordId::FIRST, 8 * segment_size));
 
             // generate batch for the verifier on the left of the prover
             let mut batch_left = Batch::default();
-            batch_left.inner.insert(Gate::default(), MultiplicationInputsBatch::new(1024, RecordId::FIRST, segment_size));
+            batch_left.inner.insert(Gate::default(), MultiplicationInputsBatch::new(1024 / segment_size, RecordId::FIRST, 8 * segment_size));
 
             // generate batch for the verifier on the right of the prover
             let mut batch_right = Batch::default();
-            batch_right.inner.insert(Gate::default(), MultiplicationInputsBatch::new(1024, RecordId::FIRST, segment_size));
+            batch_right.inner.insert(Gate::default(), MultiplicationInputsBatch::new(1024 / segment_size, RecordId::FIRST, 8 * segment_size));
 
             // fill the batches with random values
             populate_batch(
