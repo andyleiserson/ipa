@@ -248,10 +248,10 @@ impl MultiplicationInputsBatch {
     /// Creates a new store.
     /// `first_record` and `last_record` is initialized to `0`.
     /// The size of the allocated vector is `(records_per_batch * multiplication_bit_size + 255) / 256`
-    fn new(records_per_batch: usize, multiplication_bit_size: usize) -> Self {
+    fn new(records_per_batch: usize, first_record: RecordId, multiplication_bit_size: usize) -> Self {
         Self {
-            first_record: RecordId::FIRST,
-            last_record: RecordId::FIRST,
+            first_record,
+            last_record: first_record,
             records_per_batch,
             multiplication_bit_size,
             is_empty: false,
@@ -308,7 +308,11 @@ impl MultiplicationInputsBatch {
         debug_assert_eq!(segment.len(), self.multiplication_bit_size);
 
         // panics when record_id is out of bounds
-        assert!(record_id >= self.first_record);
+        assert!(
+            record_id >= self.first_record,
+            "record_id out of range in insert_segment. record {record_id} is before \
+             first record {first}", first = self.first_record,
+        );
         assert!(
             record_id < RecordId::from(self.records_per_batch + usize::from(self.first_record)),
             "record_id out of range in insert_segment. record {record_id} is beyond \
@@ -486,9 +490,15 @@ impl Batches {
 
     fn batch(&mut self, batch_offset: usize) -> &mut Batch {
         if self.batches.len() <= batch_offset {
-            // TODO: this should do something involving, or similar to, increment_record_ids
-            self.batches.resize_with(batch_offset, || Batch::new(self.records_per_batch));
+            self.batches.reserve(batch_offset - self.batches.len() + 1);
+            while self.batches.len() <= batch_offset {
+                let first_record = RecordId::from(
+                    (self.first_batch + self.batches.len()) * self.records_per_batch
+                );
+                self.batches.push_back(Batch::new(self.records_per_batch, first_record));
+            }
         }
+        //tracing::info!("offset {} first {} len {}", batch_offset, self.first_batch, self.batches.len());
         &mut self.batches[batch_offset]
     }
 
@@ -496,7 +506,7 @@ impl Batches {
         self.batch(self.batch_offset(record_id)).push(gate, record_id, segment);
     }
 
-    fn validate_record(&mut self, record_id: RecordId) -> Either<Batch, Arc<Notify>> {
+    fn validate_record(&mut self, record_id: RecordId) -> Either<(usize, Batch), Arc<Notify>> {
         tracing::trace!("validate record {record_id}");
         let batch_offset = self.batch_offset(record_id);
         let batch = self.batch(batch_offset);
@@ -506,25 +516,17 @@ impl Batches {
             // arriving out of order. (If we do, I think we would still want to actually fulfill
             // the validations in order.)
             assert_eq!(
-                batch_offset, self.first_batch, "Batches should be processed in order. \
-                 Batch {batch_offset} is ready for validation, but the first batch is {first}.",
-                first = self.first_batch,
+                batch_offset, 0, "Batches should be processed in order. \
+                 Batch {idx} is ready for validation, but the first batch is {first}.",
+                idx = self.first_batch + batch_offset, first = self.first_batch,
             );
+            tracing::info!("batch {} is ready for validation", self.first_batch + batch_offset);
             let batch = self.batches.pop_front().unwrap();
-            return Either::left(batch);
+            self.first_batch += 1;
+            return Either::left((self.first_batch + batch_offset, batch));
         } else {
             return Either::right(batch.notify.clone());
         }
-        /*
-        };
-        if let Some(notify) = notify {
-            notify.notified().await;
-        } else {
-            tracing::trace!("validating batch");
-            self.validate_chunk(0).await.unwrap();
-        }
-        Ok(())
-        */
     }
 
     fn is_empty(&self) -> bool {
@@ -541,21 +543,21 @@ impl Batches {
 #[derive(Debug)]
 struct Batch {
     records_per_batch: usize,
+    first_record: RecordId,
     inner: BTreeMap<Gate, MultiplicationInputsBatch>,
     notify: Arc<Notify>,
     records: AtomicUsize,
-    index: usize,
 }
 
 impl Batch {
-    fn new(records_per_batch: usize) -> Self {
+    fn new(records_per_batch: usize, first_record: RecordId) -> Self {
         Self {
             max_multiplications_per_gate,
             records_per_batch,
+            first_record,
             inner: BTreeMap::<Gate, MultiplicationInputsBatch>::default(),
             notify: Arc::new(Notify::new()),
             records: AtomicUsize::new(0),
-            index: 0,
         }
     }
 
@@ -569,7 +571,7 @@ impl Batch {
         self.inner
             .entry(gate)
             .or_insert_with(|| {
-                MultiplicationInputsBatch::new(self.records_per_batch, segment.len())
+                MultiplicationInputsBatch::new(self.records_per_batch, self.first_record, segment.len())
             })
             .insert_segment(record_id, segment);
     }
@@ -774,11 +776,11 @@ impl<'a> MaliciousDZKPValidator<'a> {
     /// ## Panics
     /// Panics when `context_counter` exceeds 256
     /// or when `usize` to `u128` conversion fails.
-    async fn validate_batch(&self, batch: Batch) -> Result<(), Error> {
+    async fn validate_batch(&self, index: usize, batch: Batch) -> Result<(), Error> {
         // set up context for this chunk
         let chunk_ctx = self
             .validate_ctx
-            .narrow(&Step::ValidationChunk(batch.index));
+            .narrow(&Step::ValidationChunk(index));
         let proof_ctx = chunk_ctx.narrow(&Step::GenerateProof);
 
         let (
@@ -868,9 +870,9 @@ impl<'a> DZKPValidator for MaliciousDZKPValidator<'a> {
     async fn validate_record(&self, record_id: RecordId) -> Result<(), Error> {
         let result = self.batches_ref.lock().unwrap().validate_record(record_id);
         match result {
-            Either::Left(batch) => {
+            Either::Left((index, batch)) => {
                 tracing::trace!("validating batch");
-                self.validate_batch(batch).await
+                self.validate_batch(index, batch).await
             }
             Either::Right(notify) => {
                 notify.notified().await;
@@ -1266,13 +1268,13 @@ mod tests {
         // test for small and large segments, i.e. 8bit and 512 bit
         for segment_size in [8usize, 512usize] {
             // generate batch for the prover
-            let mut batch_prover = Batch::new(1024 / segment_size);
+            let mut batch_prover = Batch::new(1024 / segment_size, RecordId::FIRST);
 
             // generate batch for the verifier on the left of the prover
-            let mut batch_left = Batch::new(1024 / segment_size);
+            let mut batch_left = Batch::new(1024 / segment_size, RecordId::FIRST);
 
             // generate batch for the verifier on the right of the prover
-            let mut batch_right = Batch::new(1024 / segment_size);
+            let mut batch_right = Batch::new(1024 / segment_size, RecordId::FIRST);
 
             // fill the batches with random values
             populate_batch(

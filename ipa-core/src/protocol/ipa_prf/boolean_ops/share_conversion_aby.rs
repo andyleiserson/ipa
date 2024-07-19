@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn test_semi_honest_convert_to_fp25519() {
         run(|| async move {
-            const COUNT: usize = CONV_CHUNK + 1;
+            const COUNT: usize = 8 * CONV_CHUNK/* + 1*/;
 
             let world = TestWorld::default();
 
@@ -437,7 +437,8 @@ mod tests {
             let [res0, res1, res2] = world
                 .semi_honest(records.into_iter(), |ctx, records| async move {
                     let c_ctx = ctx.set_total_records((COUNT + CONV_CHUNK - 1) / CONV_CHUNK);
-                    let validator = &c_ctx.dzkp_validator((COUNT + CONV_CHUNK - 1) / CONV_CHUNK);
+                    //let validator = &c_ctx.dzkp_validator((COUNT + CONV_CHUNK - 1) / CONV_CHUNK);
+                    let validator = &c_ctx.dzkp_validator(2);
                     let m_ctx = validator.context();
                     seq_join(
                         m_ctx.active_work(),
@@ -474,7 +475,7 @@ mod tests {
     #[test]
     fn test_malicious_convert_to_fp25519() {
         run(|| async move {
-            const COUNT: usize = CONV_CHUNK + 1;
+            const COUNT: usize = 8 * CONV_CHUNK/* + 1*/;
 
             let world = TestWorld::default();
 
@@ -496,7 +497,8 @@ mod tests {
             let [res0, res1, res2] = world
                 .malicious(records.into_iter(), |ctx, records| async move {
                     let c_ctx = ctx.set_total_records((COUNT + CONV_CHUNK - 1) / CONV_CHUNK);
-                    let validator = &c_ctx.dzkp_validator((COUNT + CONV_CHUNK - 1) / CONV_CHUNK);
+                    //let validator = &c_ctx.dzkp_validator((COUNT + CONV_CHUNK - 1) / CONV_CHUNK);
+                    let validator = &c_ctx.dzkp_validator(2);
                     let m_ctx = validator.context();
                     seq_join(
                         m_ctx.active_work(),
