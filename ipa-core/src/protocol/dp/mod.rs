@@ -5,14 +5,20 @@ use std::f64;
 use futures_util::{stream, StreamExt};
 
 use crate::{
-    error::{Error, Error::EpsilonOutOfBounds, LengthError},
+    error::{
+        Error::{self, EpsilonOutOfBounds},
+        LengthError,
+    },
     ff::{boolean::Boolean, boolean_array::BooleanArray, U128Conversions},
     helpers::{query::DpMechanism, TotalRecords},
     protocol::{
         boolean::step::ThirtyTwoBitStep,
-        context::Context,
+        context::{dzkp_validator::DZKPValidator, Context, DZKPUpgraded, UpgradableContext},
         dp::step::DPStep,
-        ipa_prf::{aggregation::aggregate_values, boolean_ops::addition_sequential::integer_add},
+        ipa_prf::{
+            aggregation::{aggregate_values, aggregate_values_proof_chunk},
+            boolean_ops::addition_sequential::integer_add,
+        },
         prss::{FromPrss, SharedRandomness},
         BooleanProtocols, RecordId,
     },
@@ -125,7 +131,7 @@ impl NoiseParams {
 /// may have errors generated in `aggregate_values` also some asserts here
 pub async fn gen_binomial_noise<C, const B: usize, OV>(
     ctx: C,
-    num_bernoulli: u32,
+    num_bernoulli: usize,
 ) -> Result<BitDecomposed<Replicated<Boolean, B>>, Error>
 where
     C: Context,
@@ -158,7 +164,7 @@ where
     let aggregation_input = Box::pin(stream::iter(vector_input_to_agg.into_iter()).map(Ok));
     // Step 3: Call `aggregate_values` to sum up Bernoulli noise.
     let noise_vector: Result<BitDecomposed<AdditiveShare<Boolean, { B }>>, Error> =
-        aggregate_values::<_, OV, B>(ctx, aggregation_input, num_bernoulli as usize).await;
+        aggregate_values::<_, OV, B>(ctx, aggregation_input, num_bernoulli).await;
     noise_vector
 }
 /// `apply_dp_noise` takes the noise distribution parameters (`num_bernoulli` and in the future `quantization_scale`)
@@ -172,7 +178,7 @@ where
 pub async fn apply_dp_noise<C, const B: usize, OV>(
     ctx: C,
     histogram_bin_values: BitDecomposed<Replicated<Boolean, B>>,
-    num_bernoulli: u32,
+    num_bernoulli: usize,
 ) -> Result<Vec<Replicated<OV>>, Error>
 where
     C: Context,
@@ -221,11 +227,11 @@ pub async fn dp_for_histogram<C, const B: usize, OV, const SS_BITS: usize>(
     dp_params: DpMechanism,
 ) -> Result<Vec<Replicated<OV>>, Error>
 where
-    C: Context,
+    C: UpgradableContext,
     Boolean: Vectorizable<B> + FieldSimd<B>,
     BitDecomposed<Replicated<Boolean, B>>: FromPrss<usize>,
     OV: BooleanArray + U128Conversions,
-    Replicated<Boolean, B>: BooleanProtocols<C, B>,
+    Replicated<Boolean, B>: BooleanProtocols<DZKPUpgraded<C>, B>,
     Vec<Replicated<OV>>:
         for<'a> TransposeFrom<&'a BitDecomposed<Replicated<Boolean, B>>, Error = LengthError>,
 {
@@ -249,7 +255,8 @@ where
                 ..Default::default()
             };
 
-            let num_bernoulli = find_smallest_num_bernoulli(&noise_params);
+            let num_bernoulli =
+                usize::try_from(find_smallest_num_bernoulli(&noise_params)).unwrap();
             let epsilon = noise_params.epsilon;
             let delta = noise_params.delta;
             tracing::info!(
@@ -261,10 +268,29 @@ where
                 num_bernoulli = {num_bernoulli}"
             );
 
-            let noisy_histogram =
-                apply_dp_noise::<C, B, OV>(ctx, histogram_bin_values, num_bernoulli)
-                    .await
-                    .unwrap();
+            let agg_proof_chunk = aggregate_values_proof_chunk(B, 1);
+            if usize::try_from(num_bernoulli).unwrap() > 2 * agg_proof_chunk {
+                // Although it may not be true relative to our current value of
+                // TARGET_PROOF_SIZE, I suspect that it is reasonable to validate noise
+                // generation with a single proof. If so, it will be quite a bit easier to
+                // increase the proof limit, than to split noise generation into multiple
+                // proofs. This warning is an encouragement to resolve the situation, one
+                // way or another.
+                tracing::warn!(
+                    "num_bernoulli of {num_bernoulli} may result in excessively large DZKP"
+                );
+            }
+            let dp_validator = ctx.dzkp_validator(usize::try_from(num_bernoulli).unwrap());
+
+            let noisy_histogram = apply_dp_noise::<_, B, OV>(
+                dp_validator.context(),
+                histogram_bin_values,
+                num_bernoulli,
+            )
+            .await
+            .unwrap();
+
+            dp_validator.validate().await?;
 
             Ok(noisy_histogram)
         }
@@ -464,7 +490,7 @@ mod test {
                 apply_dp_noise::<_, { NUM_BREAKDOWNS as usize }, OutputValue>(
                     ctx,
                     input,
-                    num_bernoulli,
+                    num_bernoulli.try_into().unwrap(),
                 )
                 .await
                 .unwrap()
@@ -514,7 +540,7 @@ mod test {
                 Vec::transposed_from(
                     &gen_binomial_noise::<_, { NUM_BREAKDOWNS as usize }, OutputValue>(
                         ctx,
-                        num_bernoulli,
+                        num_bernoulli.try_into().unwrap(),
                     )
                     .await
                     .unwrap(),
@@ -549,7 +575,7 @@ mod test {
                 Vec::transposed_from(
                     &gen_binomial_noise::<_, { NUM_BREAKDOWNS as usize }, OutputValue>(
                         ctx,
-                        num_bernoulli,
+                        num_bernoulli.try_into().unwrap(),
                     )
                     .await
                     .unwrap(),
@@ -584,7 +610,7 @@ mod test {
                 Vec::transposed_from(
                     &gen_binomial_noise::<_, { NUM_BREAKDOWNS as usize }, OutputValue>(
                         ctx,
-                        num_bernoulli,
+                        num_bernoulli.try_into().unwrap(),
                     )
                     .await
                     .unwrap(),
@@ -625,7 +651,7 @@ mod test {
                 Vec::transposed_from(
                     &gen_binomial_noise::<_, { NUM_BREAKDOWNS as usize }, OutputValue>(
                         ctx,
-                        num_bernoulli,
+                        num_bernoulli.try_into().unwrap(),
                     )
                     .await
                     .unwrap(),

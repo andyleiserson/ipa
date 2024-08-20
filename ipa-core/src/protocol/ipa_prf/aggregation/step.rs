@@ -10,8 +10,8 @@ pub(crate) enum AggregationStep {
     RevealStep,
     #[step(child = BucketStep)]
     MoveToBucket,
-    #[step(count = 32, child = AggregateValuesStep)]
-    Aggregate(usize),
+    #[step(count = 32, child = AggregateChunkStep)]
+    AggregateChunk(usize),
 }
 
 /// the number of steps must be kept in sync with `MAX_BREAKDOWNS` defined
@@ -24,6 +24,12 @@ impl From<usize> for BucketStep {
     fn from(v: usize) -> Self {
         Self(v)
     }
+}
+
+#[derive(CompactStep)]
+pub(crate) enum AggregateChunkStep {
+    #[step(count = 32, child = AggregateValuesStep)]
+    Aggregate(usize),
 }
 
 #[derive(CompactStep)]
