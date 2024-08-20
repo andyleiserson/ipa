@@ -10,6 +10,7 @@ use crate::{
     ff::{
         boolean::Boolean,
         boolean_array::{BooleanArray, BA5, BA64, BA8},
+        curve_points::RP25519,
         ec_prime_field::Fp25519,
         Serializable, U128Conversions,
     },
@@ -18,10 +19,10 @@ use crate::{
         TotalRecords,
     },
     protocol::{
-        basics::{BooleanArrayMul, BooleanProtocols, SecureMul},
+        basics::{BooleanArrayMul, BooleanProtocols, Reveal},
         context::{
             dzkp_validator::DZKPValidator, Context, DZKPUpgraded, DZKPUpgradedSemiHonestContext,
-            SemiHonestContext, UpgradableContext, UpgradedSemiHonestContext,
+            MacUpgraded, SemiHonestContext, UpgradableContext, UpgradedSemiHonestContext,
         },
         ipa_prf::{
             boolean_ops::convert_to_fp25519,
@@ -35,7 +36,7 @@ use crate::{
     },
     secret_sharing::{
         replicated::semi_honest::AdditiveShare as Replicated, BitDecomposed, FieldSimd,
-        SharedValue, TransposeFrom,
+        SharedValue, TransposeFrom, Vectorizable,
     },
     seq_join::seq_join,
     sharding::NotSharded,
@@ -91,7 +92,7 @@ use step::IpaPrfStep as Step;
 
 use crate::{
     helpers::query::DpMechanism,
-    protocol::{context::Validator, dp::dp_for_histogram},
+    protocol::{context::Validator, dp::dp_for_histogram, ipa_prf::prf_eval::PrfSharing},
 };
 
 #[derive(Clone, Debug, Default)]
@@ -301,7 +302,10 @@ where
     TV: BooleanArray,
     TS: BooleanArray,
     Replicated<Boolean, CONV_CHUNK>: BooleanProtocols<DZKPUpgraded<C>, CONV_CHUNK>,
-    Replicated<Fp25519, PRF_CHUNK>: SecureMul<C> + FromPrss,
+    Replicated<Fp25519, PRF_CHUNK>:
+        PrfSharing<MacUpgraded<C, Fp25519>, PRF_CHUNK, Field = Fp25519> + FromPrss,
+    Replicated<RP25519, PRF_CHUNK>:
+        Reveal<MacUpgraded<C, Fp25519>, Output = <RP25519 as Vectorizable<PRF_CHUNK>>::Array>,
 {
     let conv_records =
         TotalRecords::specified(div_round_up(input_rows.len(), Const::<CONV_CHUNK>))?;
@@ -309,9 +313,6 @@ where
     let convert_ctx = ctx
         .narrow(&Step::ConvertFp25519)
         .set_total_records(conv_records);
-    let eval_ctx = ctx.narrow(&Step::EvalPrf).set_total_records(eval_records);
-
-    let prf_key = gen_prf_key(&eval_ctx);
 
     let validator = convert_ctx.dzkp_validator(CONV_PROOF_CHUNK);
     let m_ctx = validator.context();
@@ -332,6 +333,11 @@ where
     .try_flatten_iters()
     .try_collect::<Vec<_>>()
     .await?;
+
+    let eval_ctx = ctx.narrow(&Step::EvalPrf).set_total_records(eval_records);
+    let prf_key = gen_prf_key(&eval_ctx);
+    let validator = eval_ctx.validator::<Fp25519>();
+    let eval_ctx = validator.context();
 
     let prf_of_match_keys = seq_join(
         ctx.active_work(),
