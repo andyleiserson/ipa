@@ -20,8 +20,8 @@ use crate::{
     protocol::{
         basics::{BooleanArrayMul, BooleanProtocols, SecureMul},
         context::{
-            Context, DZKPUpgraded, DZKPUpgradedSemiHonestContext, SemiHonestContext,
-            UpgradableContext, UpgradedSemiHonestContext,
+            dzkp_validator::DZKPValidator, Context, DZKPUpgraded, DZKPUpgradedSemiHonestContext,
+            SemiHonestContext, UpgradableContext, UpgradedSemiHonestContext,
         },
         ipa_prf::{
             boolean_ops::convert_to_fp25519,
@@ -314,6 +314,7 @@ where
     let prf_key = gen_prf_key(&eval_ctx);
 
     let validator = convert_ctx.dzkp_validator(CONV_PROOF_CHUNK);
+    let m_ctx = validator.context();
 
     let curve_pts = seq_join(
         ctx.active_work(),
@@ -324,7 +325,7 @@ where
             let match_keys =
                 BitDecomposed::<Replicated<Boolean, 256>>::transposed_from(input_match_keys)
                     .unwrap_infallible();
-            convert_to_fp25519::<_, CONV_CHUNK, PRF_CHUNK>(validator.clone(), record_id, match_keys)
+            convert_to_fp25519::<_, CONV_CHUNK, PRF_CHUNK>(m_ctx.clone(), record_id, match_keys)
         }),
     )
     .map_ok(Chunk::unpack::<PRF_CHUNK>)

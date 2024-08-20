@@ -182,7 +182,6 @@ impl<'a, B> Batcher<'a, B> {
     ///
     /// # Panics
     /// If the batcher contains more than one batch.
-    #[allow(dead_code)]
     pub fn into_single_batch(mut self) -> B {
         assert!(self.first_batch == 0);
         assert!(self.batches.len() <= 1);
@@ -192,7 +191,6 @@ impl<'a, B> Batcher<'a, B> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn iter(&self) -> impl Iterator<Item = &BatchState<B>> {
         self.batches.iter()
     }
