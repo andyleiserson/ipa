@@ -20,10 +20,7 @@ use crate::{
     },
     protocol::{
         basics::{BooleanArrayMul, BooleanProtocols, Reveal},
-        context::{
-            dzkp_validator::DZKPValidator, Context, DZKPUpgraded, DZKPUpgradedSemiHonestContext,
-            MacUpgraded, SemiHonestContext, UpgradableContext, UpgradedSemiHonestContext,
-        },
+        context::{dzkp_validator::DZKPValidator, DZKPUpgraded, MacUpgraded, UpgradableContext},
         ipa_prf::{
             boolean_ops::convert_to_fp25519,
             prf_eval::{eval_dy_prf, gen_prf_key},
@@ -39,7 +36,6 @@ use crate::{
         SharedValue, TransposeFrom, Vectorizable,
     },
     seq_join::seq_join,
-    sharding::NotSharded,
 };
 
 pub(crate) mod aggregation;
@@ -214,24 +210,31 @@ where
 /// Propagates errors from config issues or while running the protocol
 /// # Panics
 /// Propagates errors from config issues or while running the protocol
-pub async fn oprf_ipa<'ctx, BK, TV, HV, TS, const SS_BITS: usize, const B: usize>(
-    ctx: SemiHonestContext<'ctx>,
+pub async fn oprf_ipa<'ctx, C, BK, TV, HV, TS, const SS_BITS: usize, const B: usize>(
+    ctx: C,
     input_rows: Vec<OPRFIPAInputRow<BK, TV, TS>>,
     attribution_window_seconds: Option<NonZeroU32>,
     dp_params: DpMechanism,
 ) -> Result<Vec<Replicated<HV>>, Error>
 where
+    C: UpgradableContext + 'ctx,
     BK: BreakdownKey<B>,
     TV: BooleanArray + U128Conversions,
     HV: BooleanArray + U128Conversions,
     TS: BooleanArray + U128Conversions,
     Boolean: FieldSimd<B>,
-    Replicated<Boolean, B>:
-        BooleanProtocols<UpgradedSemiHonestContext<'ctx, NotSharded, Boolean>, B>,
-    Replicated<Boolean, B>: BooleanProtocols<DZKPUpgradedSemiHonestContext<'ctx, NotSharded>, B>,
-    for<'a> Replicated<BK>: BooleanArrayMul<DZKPUpgradedSemiHonestContext<'a, NotSharded>>,
-    for<'a> Replicated<TS>: BooleanArrayMul<DZKPUpgradedSemiHonestContext<'a, NotSharded>>,
-    for<'a> Replicated<TV>: BooleanArrayMul<DZKPUpgradedSemiHonestContext<'a, NotSharded>>,
+    Replicated<Boolean>: BooleanProtocols<DZKPUpgraded<C>>,
+    Replicated<Boolean, B>: BooleanProtocols<DZKPUpgraded<C>, B>,
+    Replicated<Boolean, AGG_CHUNK>: BooleanProtocols<DZKPUpgraded<C>, AGG_CHUNK>,
+    Replicated<Boolean, CONV_CHUNK>: BooleanProtocols<DZKPUpgraded<C>, CONV_CHUNK>,
+    Replicated<Boolean, SORT_CHUNK>: BooleanProtocols<DZKPUpgraded<C>, SORT_CHUNK>,
+    Replicated<Fp25519, PRF_CHUNK>:
+        PrfSharing<MacUpgraded<C, Fp25519>, PRF_CHUNK, Field = Fp25519> + FromPrss,
+    Replicated<RP25519, PRF_CHUNK>:
+        Reveal<MacUpgraded<C, Fp25519>, Output = <RP25519 as Vectorizable<PRF_CHUNK>>::Array>,
+    for<'a> Replicated<BK>: BooleanArrayMul<DZKPUpgraded<C>>,
+    for<'a> Replicated<TS>: BooleanArrayMul<DZKPUpgraded<C>>,
+    for<'a> Replicated<TV>: BooleanArrayMul<DZKPUpgraded<C>>,
     BitDecomposed<Replicated<Boolean, AGG_CHUNK>>:
         for<'a> TransposeFrom<&'a Vec<Replicated<BK>>, Error = LengthError>,
     BitDecomposed<Replicated<Boolean, AGG_CHUNK>>:
@@ -420,8 +423,8 @@ pub mod tests {
             let dp_params = DpMechanism::NoDp;
 
             let mut result: Vec<_> = world
-                .semi_honest(records.into_iter(), |ctx, input_rows| async move {
-                    oprf_ipa::<BA5, BA3, BA16, BA20, 5, 32>(ctx, input_rows, None, dp_params)
+                .malicious(records.into_iter(), |ctx, input_rows| async move {
+                    oprf_ipa::<_, BA5, BA3, BA16, BA20, 5, 32>(ctx, input_rows, None, dp_params)
                         .await
                         .unwrap()
                 })
@@ -467,8 +470,8 @@ pub mod tests {
                 test_input(20, 68362, true, 0, 2),
             ];
             let mut result: Vec<_> = world
-                .semi_honest(records.into_iter(), |ctx, input_rows| async move {
-                    oprf_ipa::<BA5, BA3, BA16, BA20, SS_BITS, B>(ctx, input_rows, None, dp_params)
+                .malicious(records.into_iter(), |ctx, input_rows| async move {
+                    oprf_ipa::<_, BA5, BA3, BA16, BA20, SS_BITS, B>(ctx, input_rows, None, dp_params)
                         .await
                         .unwrap()
                 })
@@ -522,7 +525,7 @@ pub mod tests {
 
             let mut result: Vec<_> = world
                 .semi_honest(records.into_iter(), |ctx, input_rows| async move {
-                    oprf_ipa::<BA5, BA3, BA8, BA20, 5, 32>(ctx, input_rows, None, dp_params)
+                    oprf_ipa::<_, BA5, BA3, BA8, BA20, 5, 32>(ctx, input_rows, None, dp_params)
                         .await
                         .unwrap()
                 })
@@ -551,7 +554,7 @@ pub mod tests {
 
             let mut result: Vec<_> = world
                 .semi_honest(records.into_iter(), |ctx, input_rows| async move {
-                    oprf_ipa::<BA5, BA3, BA8, BA20, 5, 32>(ctx, input_rows, None, dp_params)
+                    oprf_ipa::<_, BA5, BA3, BA8, BA20, 5, 32>(ctx, input_rows, None, dp_params)
                         .await
                         .unwrap()
                 })
@@ -598,7 +601,7 @@ pub mod tests {
             let dp_params = DpMechanism::NoDp;
             let mut result: Vec<_> = world
                 .semi_honest(records.into_iter(), |ctx, input_rows| async move {
-                    oprf_ipa::<BA8, BA3, BA16, BA20, 5, 256>(ctx, input_rows, None, dp_params)
+                    oprf_ipa::<_, BA8, BA3, BA16, BA20, 5, 256>(ctx, input_rows, None, dp_params)
                         .await
                         .unwrap()
                 })
