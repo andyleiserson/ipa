@@ -471,9 +471,11 @@ pub mod tests {
             ];
             let mut result: Vec<_> = world
                 .malicious(records.into_iter(), |ctx, input_rows| async move {
-                    oprf_ipa::<_, BA5, BA3, BA16, BA20, SS_BITS, B>(ctx, input_rows, None, dp_params)
-                        .await
-                        .unwrap()
+                    oprf_ipa::<_, BA5, BA3, BA16, BA20, SS_BITS, B>(
+                        ctx, input_rows, None, dp_params,
+                    )
+                    .await
+                    .unwrap()
                 })
                 .await
                 .reconstruct();
