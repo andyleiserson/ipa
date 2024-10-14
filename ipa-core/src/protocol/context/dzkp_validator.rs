@@ -549,6 +549,8 @@ impl Batch {
             ProofBatch::generate(&proof_ctx, self.get_field_values_prover())
         };
 
+        let d = shares_of_batch_from_left_prover.proofs.len() + 1;
+
         let chunk_batch = BatchToVerify::generate_batch_to_verify(
             proof_ctx,
             my_batch_left_shares,
@@ -566,7 +568,7 @@ impl Batch {
         let (sum_of_uv, p_r_right_prover, q_r_left_prover) = {
             // get number of multiplications
             let m = self.get_number_of_multiplications();
-            tracing::info!("validating {m} multiplications");
+            tracing::info!("validating {m} multiplications, depth {d}");
             debug_assert_eq!(
                 m,
                 self.get_field_values_prover::<Fp61BitPrime>()
