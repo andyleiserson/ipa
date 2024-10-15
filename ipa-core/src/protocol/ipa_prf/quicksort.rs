@@ -29,7 +29,7 @@ use crate::{
         replicated::semi_honest::AdditiveShare, BitDecomposed, SharedValue, TransposeFrom,
         Vectorizable,
     },
-    seq_join::seq_join,
+    seq_join::{seq_join, SeqJoin},
 };
 
 impl<K> ChunkBuffer<SORT_CHUNK> for (Vec<AdditiveShare<K>>, Vec<AdditiveShare<K>>)
@@ -198,7 +198,7 @@ where
             "ThirtyTwoBitStep is not large enough to accommodate this sort"
         );
         let compare_results = seq_join(
-            ctx.active_work(),
+            cmp_ctx.active_work(),
             process_stream_by_chunks::<_, _, _, _, _, _, SORT_CHUNK>(
                 compare_index_pairs,
                 (Vec::new(), Vec::new()),
