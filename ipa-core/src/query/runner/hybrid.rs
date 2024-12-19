@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use futures::{future::lazy, StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt};
 use generic_array::ArrayLength;
 
 use super::QueryResult;
@@ -107,7 +107,7 @@ where
             config,
             key_registry,
             phantom_data: _,
-        } = self;
+        } = &self;
 
         tracing::info!("New hybrid query: {config:?}");
         let ctx = ctx.narrow(&Hybrid);
@@ -122,14 +122,14 @@ where
         let stream = LengthDelimitedStream::<EncryptedHybridReport<BA8, BA3>, _>::new(input_stream)
             .map_err(Into::into)
             .try_flatten_iters()
-            .map(|enc_report_res| {
-                lazy(|_| enc_report_res.and_then(|enc_report| {
+            .map(|enc_report_res| async move {
+                enc_report_res.and_then(|enc_report| {
                     let dec_report = enc_report
                         .decrypt(key_registry.as_ref())
                         .map_err(Into::<Error>::into);
                     let unique_tag = UniqueTag::from_unique_bytes(&enc_report);
                     dec_report.map(|dec_report1| (dec_report1, unique_tag))
-                }))
+                })
             })
             .take(sz);
 
