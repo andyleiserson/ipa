@@ -98,12 +98,13 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn input_from_url() {
         const QUERY_ID: QueryId = QueryId;
-        const DATA: &str = "input records";
+        const DATA: &str = "<input records>";
 
         let server = tiny_http::Server::http("localhost:0").unwrap();
         let addr = server.server_addr();
         thread::spawn(move || {
             let request = server.recv().unwrap();
+            println!("request url: {}, secure = {}", request.url(), request.secure());
             let response = tiny_http::Response::from_string(DATA);
             request.respond(response).unwrap();
         });
@@ -113,8 +114,12 @@ mod tests {
                 panic!("unexpected call");
             };
 
+            let body_bytes = body.try_collect::<BytesMut>().await.unwrap();
+
             assert_eq!(addr.query_id, Some(QUERY_ID));
-            assert_eq!(body.try_collect::<BytesMut>().await.unwrap(), DATA);
+            assert_eq!(body_bytes, DATA);
+
+            println!("query input: {}", std::str::from_utf8(&body_bytes).unwrap());
 
             Ok(HelperResponse::ok())
         });
@@ -124,9 +129,8 @@ mod tests {
             .await;
 
         let url = format!(
-            "http://localhost:{}{}/{QUERY_ID}/input",
+            "http://localhost:{}/input-data",
             addr.to_ip().unwrap().port(),
-            http_serde::query::BASE_AXUM_PATH,
         );
         let req = http_serde::query::input::Request::new(QueryInput::FromUrl {
             query_id: QUERY_ID,
@@ -137,6 +141,7 @@ mod tests {
             .unwrap();
 
         let resp = test_server.server.handle_req(hyper_req).await;
+        println!("{resp:?}");
         if !resp.status().is_success() {
             let (head, body) = resp.into_parts();
             let body_bytes = body.collect().await.unwrap().to_bytes();
